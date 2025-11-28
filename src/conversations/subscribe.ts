@@ -1,14 +1,12 @@
-import type { Conversation } from "@grammyjs/conversations";
 import { InlineKeyboard } from "grammy";
 import { eq } from "drizzle-orm";
 import { circleMonths, circles, stocks } from "../db/schema";
-import type { MyContext, MyContext } from "../lib/context";
+import type { MyContext, MyConversation } from "../lib/context";
 import {
   buildMonthKeyboard,
   computeMonthAvailability,
   type MonthAvailability,
 } from "../lib/helpers";
-import { findOrCreateUser } from "../lib/users";
 
 const confirmationKeyboard = new InlineKeyboard()
   .text("✅ Confirm", "confirm")
@@ -19,7 +17,7 @@ const continueKeyboard = new InlineKeyboard()
   .text("✅ Finish", "continue:done");
 
 export async function subscribeConversation(
-  conversation: Conversation<MyContext, MyContext>,
+  conversation: MyConversation,
   ctx: MyContext,
 ) {
   if (!ctx.from) {
@@ -27,7 +25,7 @@ export async function subscribeConversation(
     return;
   }
 
-  const user = await findOrCreateUser(ctx);
+  const user = ctx.user;
   const activeCircle = await ctx.db.query.circles.findFirst({
     where: eq(circles.isLocked, false),
   });
@@ -152,7 +150,7 @@ export async function subscribeConversation(
 }
 
 async function waitForMonthSelection(
-  conversation: Conversation<MyContext, MyContext>,
+  conversation: MyConversation,
   months: MonthAvailability[],
 ): Promise<{ finished: boolean; month?: MonthAvailability }> {
   while (true) {
@@ -208,7 +206,7 @@ function buildStockKeyboard(max: number): InlineKeyboard {
 }
 
 async function waitForStockCount(
-  conversation: Conversation<MyContext, MyContext>,
+  conversation: MyConversation,
   max: number,
 ): Promise<number | null> {
   while (true) {
@@ -243,7 +241,7 @@ async function waitForStockCount(
 }
 
 async function waitForConfirmation(
-  conversation: Conversation<MyContext, MyContext>,
+  conversation: MyConversation,
 ): Promise<boolean> {
   while (true) {
     const confirmCtx = await conversation.waitFor("callback_query:data");
@@ -262,7 +260,7 @@ async function waitForConfirmation(
 }
 
 async function askToContinue(
-  conversation: Conversation<MyContext, MyContext>,
+  conversation: MyConversation,
   ctx: MyContext,
 ): Promise<boolean> {
   await ctx.reply("Would you like to subscribe to another month?", {

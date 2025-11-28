@@ -4,34 +4,40 @@ import type { MyContext } from "./context";
 
 export type UserRecord = typeof users.$inferSelect;
 
-export async function findOrCreateUser(ctx: MyContext): Promise<UserRecord> {
+export async function userMiddleware(ctx: MyContext, next: () => Promise<void>) {
   if (!ctx.from) {
     throw new Error("Missing Telegram user information.");
   }
   const telegramId = String(ctx.from.id);
+
   const existing = await ctx.db.query.users.findFirst({
     where: eq(users.telegramId, telegramId),
   });
   if (existing) {
-    return existing;
+    ctx.user = existing;
+    return next();
   }
 
+  // Check if any users exist - if not, this will be the first user (admin)
+  const anyUser = await ctx.db.query.users.findFirst();
+  const isAdmin = !anyUser;
+
   const [created] = await ctx.db
-    .insert(users as any)
-    .values({
-      telegramId,
-    })
+    .insert(users)
+    .values({ telegramId, isAdmin })
+    .onConflictDoNothing({ target: [users.telegramId] })
     .returning();
+
   if (!created) {
     throw new Error("Unable to create user record.");
   }
-  return created;
+  ctx.user = created;
+  return next();
 }
 
 export async function requireAdmin(ctx: MyContext): Promise<UserRecord | null> {
-  const user = await findOrCreateUser(ctx);
-  if (user.isAdmin) {
-    return user;
+  if (ctx.user.isAdmin) {
+    return ctx.user;
   }
   return null;
 }

@@ -6,7 +6,7 @@ import { subscribeConversation } from "./conversations/subscribe";
 import { circles } from "./db/schema";
 import type { MyContext } from "./lib/context";
 import { db } from "./lib/db";
-import { requireAdmin } from "./lib/users";
+import { requireAdmin, userMiddleware } from "./lib/users";
 
 const bot = new Bot<MyContext>(process.env.BOT_TOKEN!);
 
@@ -16,10 +16,11 @@ const dbMiddleware = async (ctx: MyContext, next: () => Promise<void>) => {
 };
 
 bot.use(dbMiddleware);
+bot.use(userMiddleware);
 
 bot.use(conversations());
-bot.use(createConversation(subscribeConversation, { plugins: [dbMiddleware] }));
-bot.use(createConversation(createCircleConversation, { plugins: [dbMiddleware] }));
+bot.use(createConversation(subscribeConversation, { plugins: [dbMiddleware, userMiddleware] }));
+bot.use(createConversation(createCircleConversation, { plugins: [dbMiddleware, userMiddleware] }));
 
 bot.command("start", async (ctx) => {
   await ctx.reply("Hello! Use /subscribe to reserve stocks in the current circle.");
@@ -67,4 +68,11 @@ bot.command("start_circle", async (ctx) => {
   );
 });
 
-bot.start();
+bot.catch(({ error }) => {
+  console.error(error);
+});
+bot.start({
+  onStart(botInfo) {
+    console.log(`Bot started as https://t.me/${botInfo.username}`);
+  },
+});
