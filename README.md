@@ -88,6 +88,17 @@ Admin Commands
  • /create_circle
  • /start_circle
 
+### Admin Workflow
+
+`/create_circle`
+ • Launches a guided setup that asks for the circle name, monthly amount, and the ordered list of payout months.
+ • Months are entered as `Month:stocks` pairs separated by commas or line breaks (e.g., `January:10, February:8`).
+ • After confirmation, the circle and all month slots are stored and left unlocked for subscriptions.
+
+`/start_circle`
+ • Locks the current open circle so no more subscriptions can be made.
+ • Run this once all desired stocks are claimed to begin the rotation.
+
 ⸻
 
 ## Project Goals

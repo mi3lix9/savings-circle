@@ -1,5 +1,8 @@
-import { drizzle } from 'drizzle-orm/bun-sql';
+import { drizzle } from "drizzle-orm/bun-sqlite";
 import * as schema from '../db/schema';
-export const db = drizzle(process.env.DATABASE_URL!, { schema });
+import { Database as BunDatabase } from "bun:sqlite";
+
+const sqlite = new BunDatabase("sqlite.db");
+export const db = drizzle(sqlite, { schema });
 
 export type Database = typeof db;

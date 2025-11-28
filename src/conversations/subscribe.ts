@@ -1,15 +1,14 @@
 import type { Conversation } from "@grammyjs/conversations";
 import { InlineKeyboard } from "grammy";
 import { eq } from "drizzle-orm";
-import { circleMonths, circles, stocks, users } from "../db/schema";
-import type { ConversationContext, MyContext } from "../lib/context";
+import { circleMonths, circles, stocks } from "../db/schema";
+import type { MyContext, MyContext } from "../lib/context";
 import {
   buildMonthKeyboard,
   computeMonthAvailability,
   type MonthAvailability,
 } from "../lib/helpers";
-
-type UserRecord = typeof users.$inferSelect;
+import { findOrCreateUser } from "../lib/users";
 
 const confirmationKeyboard = new InlineKeyboard()
   .text("✅ Confirm", "confirm")
@@ -20,8 +19,8 @@ const continueKeyboard = new InlineKeyboard()
   .text("✅ Finish", "continue:done");
 
 export async function subscribeConversation(
-  conversation: Conversation<MyContext, ConversationContext>,
-  ctx: ConversationContext,
+  conversation: Conversation<MyContext, MyContext>,
+  ctx: MyContext,
 ) {
   if (!ctx.from) {
     await ctx.reply("I need your Telegram profile to get started.");
@@ -152,29 +151,8 @@ export async function subscribeConversation(
   await ctx.reply(`Success! Here is your summary:\n${lines.join("\n")}`);
 }
 
-async function findOrCreateUser(ctx: ConversationContext): Promise<UserRecord> {
-  const telegramId = String(ctx.from!.id);
-  const existing = await ctx.db.query.users.findFirst({
-    where: eq(users.telegramId, telegramId),
-  });
-  if (existing) {
-    return existing;
-  }
-
-  const [created] = await ctx.db
-    .insert(users as any)
-    .values({
-      telegramId,
-    })
-    .returning();
-  if (!created) {
-    throw new Error("Unable to create user record");
-  }
-  return created;
-}
-
 async function waitForMonthSelection(
-  conversation: Conversation<MyContext, ConversationContext>,
+  conversation: Conversation<MyContext, MyContext>,
   months: MonthAvailability[],
 ): Promise<{ finished: boolean; month?: MonthAvailability }> {
   while (true) {
@@ -230,7 +208,7 @@ function buildStockKeyboard(max: number): InlineKeyboard {
 }
 
 async function waitForStockCount(
-  conversation: Conversation<MyContext, ConversationContext>,
+  conversation: Conversation<MyContext, MyContext>,
   max: number,
 ): Promise<number | null> {
   while (true) {
@@ -265,7 +243,7 @@ async function waitForStockCount(
 }
 
 async function waitForConfirmation(
-  conversation: Conversation<MyContext, ConversationContext>,
+  conversation: Conversation<MyContext, MyContext>,
 ): Promise<boolean> {
   while (true) {
     const confirmCtx = await conversation.waitFor("callback_query:data");
@@ -284,8 +262,8 @@ async function waitForConfirmation(
 }
 
 async function askToContinue(
-  conversation: Conversation<MyContext, ConversationContext>,
-  ctx: ConversationContext,
+  conversation: Conversation<MyContext, MyContext>,
+  ctx: MyContext,
 ): Promise<boolean> {
   await ctx.reply("Would you like to subscribe to another month?", {
     reply_markup: continueKeyboard,
