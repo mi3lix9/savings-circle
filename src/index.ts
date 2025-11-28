@@ -7,6 +7,7 @@ import { circles } from "./db/schema";
 import type { MyContext } from "./lib/context";
 import { db } from "./lib/db";
 import { requireAdmin, userMiddleware } from "./lib/users";
+import { adminMainMenu } from "./menus/admin";
 
 const bot = new Bot<MyContext>(process.env.BOT_TOKEN!);
 
@@ -17,6 +18,9 @@ const dbMiddleware = async (ctx: MyContext, next: () => Promise<void>) => {
 
 bot.use(dbMiddleware);
 bot.use(userMiddleware);
+
+// Install admin menu (must be before conversations to handle callback queries)
+bot.use(adminMainMenu);
 
 bot.use(conversations());
 bot.use(createConversation(subscribeConversation, { plugins: [dbMiddleware, userMiddleware] }));
@@ -66,6 +70,16 @@ bot.command("start_circle", async (ctx) => {
   await ctx.reply(
     `Circle "${circle.name}" is now locked. Subscriptions are closed for ${monthCount} month(s).`,
   );
+});
+
+bot.command("admin", async (ctx) => {
+  const admin = await requireAdmin(ctx);
+  if (!admin) {
+    await ctx.reply("Only admins can access this command.");
+    return;
+  }
+
+  await ctx.reply("🔧 Admin Panel", { reply_markup: adminMainMenu });
 });
 
 bot.catch(({ error }) => {

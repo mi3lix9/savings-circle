@@ -37,10 +37,36 @@ export async function createCircleConversation(
     "Please enter a positive number for the monthly amount.",
   );
 
-  await ctx.reply(
-    "Send the payout months in order using the format `Month:stocks`, separated by commas or new lines.\nExample: `January:10, February:12, March:10`",
+  await ctx.reply("How many months should this circle run? (Enter a number between 1 and 24)");
+  const duration = await waitForInteger(
+    conversation,
+    "Please enter a number between 1 and 24 for the duration.",
+    { min: 1, max: 24 },
   );
-  const months = await waitForMonths(conversation);
+
+  await ctx.reply("How many stocks should be available per month?");
+  const stocksPerMonth = await waitForInteger(
+    conversation,
+    "Please enter a positive number for stocks per month.",
+    { min: 1 },
+  );
+
+  await ctx.reply("What month should the circle start? (Enter a number from 1-12, where 1=January, 12=December)");
+  const startMonth = await waitForInteger(
+    conversation,
+    "Please enter a number between 1 and 12 for the start month.",
+    { min: 1, max: 12 },
+  );
+
+  const currentYear = new Date().getFullYear();
+  await ctx.reply(`What year should the circle start? (Enter a year, e.g., ${currentYear})`);
+  const startYear = await waitForInteger(
+    conversation,
+    `Please enter a valid year (${currentYear} or later).`,
+    { min: currentYear },
+  );
+
+  const months = generateMonths(startMonth, startYear, duration, stocksPerMonth);
 
   const [newCircle] = await ctx.db
     .insert(circles as any)
@@ -65,15 +91,27 @@ export async function createCircleConversation(
 
   await ctx.db.insert(circleMonths as any).values(monthRows);
 
+  // Calculate payment details
+  const totalPerMonth = monthlyAmount * stocksPerMonth;
+  const totalPayout = monthlyAmount * stocksPerMonth * duration;
+
   const summaryLines = months.map(
     (month, idx) => `${idx + 1}. ${month.name} — ${month.totalStocks} stock(s)`,
   );
 
-  await ctx.reply(
-    `Circle "${newCircle.name}" created with a monthly amount of ${monthlyAmount}.\n\n${summaryLines.join(
-      "\n",
-    )}\n\nUse /start_circle once subscriptions should be locked.`,
-  );
+  const message = `Circle "${newCircle.name}" created!
+
+📊 Payment Details:
+• Monthly contribution per participant: ${monthlyAmount} SAR
+• Total collected per month: ${totalPerMonth.toFixed(2)} SAR
+• Total payout for circle: ${totalPayout.toFixed(2)} SAR
+
+📅 Months (${duration} months):
+${summaryLines.join("\n")}
+
+Use /start_circle once subscriptions should be locked.`;
+
+  await ctx.reply(message);
 }
 
 async function waitForText(
@@ -105,49 +143,44 @@ async function waitForPositiveNumber(
   }
 }
 
-async function waitForMonths(
+async function waitForInteger(
   conversation: MyConversation,
-): Promise<MonthConfig[]> {
+  invalidMessage: string,
+  options?: { min?: number; max?: number },
+): Promise<number> {
   while (true) {
     const answerCtx = await conversation.waitFor("message:text");
-    const text = answerCtx.message?.text ?? "";
-    const months = parseMonthInput(text);
-    if (months.length > 0) {
-      return months;
+    const rawText = answerCtx.message?.text?.trim() ?? "";
+    const value = Number(rawText.replace(/[^0-9]/g, ""));
+    if (
+      Number.isInteger(value) &&
+      value > 0 &&
+      (!options?.min || value >= options.min) &&
+      (!options?.max || value <= options.max)
+    ) {
+      return value;
     }
-    await answerCtx.reply(
-      "Couldn't parse that. Use `Month:stocks` pairs separated by commas. Example: `January:10, February:8`",
-    );
+    await answerCtx.reply(invalidMessage);
   }
 }
 
-function parseMonthInput(raw: string): MonthConfig[] {
-  const sections = raw
-    .split(/[,\\n]+/)
-    .map((section) => section.trim())
-    .filter(Boolean);
-
-  if (sections.length === 0) {
-    return [];
-  }
-
+function generateMonths(
+  startMonth: number,
+  startYear: number,
+  duration: number,
+  stocksPerMonth: number,
+): MonthConfig[] {
   const months: MonthConfig[] = [];
+  const date = new Date(startYear, startMonth - 1, 1); // Month is 0-indexed in Date
 
-  for (const section of sections) {
-    const [namePart, stockPart] = section.split(":").map((part) => part.trim());
-    if (!namePart || !stockPart) {
-      return [];
-    }
-
-    const stockValue = Number(stockPart);
-    if (!Number.isInteger(stockValue) || stockValue <= 0) {
-      return [];
-    }
-
+  for (let i = 0; i < duration; i++) {
+    const monthName = date.toLocaleString("en-US", { month: "long", year: "numeric" });
     months.push({
-      name: namePart,
-      totalStocks: stockValue,
+      name: monthName,
+      totalStocks: stocksPerMonth,
     });
+    // Move to next month (handles year rollover automatically)
+    date.setMonth(date.getMonth() + 1);
   }
 
   return months;
