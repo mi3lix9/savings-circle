@@ -3,18 +3,14 @@ import { eq } from "drizzle-orm";
 import { circleMonths, circles, stocks } from "../db/schema";
 import type { MyContext, MyConversation } from "../lib/context";
 import {
-  buildMonthKeyboard,
   computeMonthAvailability,
   type MonthAvailability,
 } from "../lib/helpers";
 
-const confirmationKeyboard = new InlineKeyboard()
-  .text("✅ Confirm", "confirm")
-  .text("↩️ Cancel", "cancel");
-
-const continueKeyboard = new InlineKeyboard()
-  .text("➕ Add Another Month", "continue:more")
-  .text("✅ Finish", "continue:done");
+type SubscribeState = {
+  monthId?: number;
+  stockCount: number;
+};
 
 export async function subscribeConversation(
   conversation: MyConversation,
@@ -35,250 +31,178 @@ export async function subscribeConversation(
     return;
   }
 
-  await ctx.reply(
-    `Welcome! Each stock for ${activeCircle.name} costs ${activeCircle.monthlyAmount}. Let's pick your months.`,
-  );
+  // Initial state
+  const state: SubscribeState = {
+    stockCount: 1,
+  };
 
-  const summary: { monthName: string; stockCount: number; amount: number }[] = [];
+  let messageId: number | undefined;
 
   while (true) {
+    // 1. Fetch fresh data
     const months = await ctx.db.query.circleMonths.findMany({
       where: eq(circleMonths.circleId, activeCircle.id),
       with: { stocks: true },
     });
 
     const availability = computeMonthAvailability(months);
-    const selectableMonths = availability.filter((month) => month.remainingStocks > 0);
-
-    if (selectableMonths.length === 0) {
-      await ctx.reply("All months are fully subscribed. Thank you for checking in!");
-      break;
-    }
-
-    await ctx.reply("Select a month to subscribe:", {
-      reply_markup: buildMonthKeyboard(selectableMonths, { includeRandom: true, includeFinish: true }),
-    });
-
-    const monthSelection = await waitForMonthSelection(
-      conversation,
-      selectableMonths,
-    );
-    if (monthSelection.finished) {
-      break;
-    }
-    const chosenMonth = monthSelection.month;
-    if (!chosenMonth) {
-      continue;
-    }
-
-    await ctx.reply(
-      `There are ${chosenMonth.remainingStocks} stock(s) available in ${chosenMonth.name}. How many would you like?`,
-      { reply_markup: buildStockKeyboard(chosenMonth.remainingStocks) },
-    );
-
-    const stockCount = await waitForStockCount(
-      conversation,
-      chosenMonth.remainingStocks,
-    );
-    if (!stockCount) {
-      await ctx.reply("No stock count was selected. Let's start over.");
-      continue;
-    }
-
-    const totalAmount = Number((stockCount * activeCircle.monthlyAmount).toFixed(2));
-
-    await ctx.reply(
-      `You chose ${stockCount} stock(s) for ${chosenMonth.name}.\nEstimated total: ${totalAmount}.\nConfirm to save this subscription.`,
-      { reply_markup: confirmationKeyboard },
-    );
-
-    const confirmed = await waitForConfirmation(conversation);
-    if (!confirmed) {
-      await ctx.reply("Okay, that selection was cancelled. Let's try again.");
-      continue;
-    }
-
-    const latestMonth = await ctx.db.query.circleMonths.findFirst({
-      where: eq(circleMonths.id, chosenMonth.id),
-      with: { stocks: true },
-    });
-
-    if (!latestMonth) {
-      await ctx.reply("The selected month is no longer available. Please pick a different one.");
-      continue;
-    }
-
-    const [freshAvailability] = computeMonthAvailability([latestMonth]);
-    if (!freshAvailability || freshAvailability.remainingStocks < stockCount) {
-      await ctx.reply("Not enough stocks remain for that month. Please pick another option.");
-      continue;
-    }
-
-    await ctx.db.insert(stocks as any).values({
-      circleId: activeCircle.id,
-      userId: user.id,
-      monthId: chosenMonth.id,
-      stockCount,
-    });
-
-    summary.push({
-      monthName: chosenMonth.name,
-      stockCount,
-      amount: totalAmount,
-    });
-
-    const shouldContinue = await askToContinue(conversation, ctx);
-    if (!shouldContinue) {
-      break;
-    }
-  }
-
-  if (summary.length === 0) {
-    await ctx.reply("No subscriptions were created. Use /subscribe again anytime.");
-    return;
-  }
-
-  const totalStocks = summary.reduce((sum, item) => sum + item.stockCount, 0);
-  const totalAmount = summary.reduce((sum, item) => sum + item.amount, 0);
-  const lines = summary.map(
-    (item, idx) => `${idx + 1}. ${item.monthName} — ${item.stockCount} stock(s)`,
-  );
-  lines.push(`Total stocks: ${totalStocks}`);
-  lines.push(`Estimated total: ${totalAmount}`);
-
-  await ctx.reply(`Success! Here is your summary:\n${lines.join("\n")}`);
-}
-
-async function waitForMonthSelection(
-  conversation: MyConversation,
-  months: MonthAvailability[],
-): Promise<{ finished: boolean; month?: MonthAvailability }> {
-  while (true) {
-    const selectionCtx = await conversation.waitFor("callback_query:data");
-    const data = selectionCtx.callbackQuery?.data ?? "";
-    await selectionCtx.answerCallbackQuery();
-
-    if (data === "finish") {
-      return { finished: true };
-    }
-
-    if (data === "random") {
-      const randomMonth = months[Math.floor(Math.random() * months.length)];
-      if (!randomMonth) {
-        await selectionCtx.reply("No months are available right now. Please try again.");
-        continue;
+    const selectableMonths = availability.filter((m) => m.remainingStocks > 0);
+    
+    // If a month is selected, ensure it's still valid
+    let selectedMonth: MonthAvailability | undefined;
+    if (state.monthId) {
+      selectedMonth = selectableMonths.find((m) => m.id === state.monthId);
+      if (!selectedMonth) {
+        // Reset if selected month became unavailable or invalid
+        state.monthId = undefined;
+        state.stockCount = 1;
       }
-      await selectionCtx.reply(`Randomly selected ${randomMonth.name}.`);
-      return { finished: false, month: randomMonth };
     }
 
-    if (data.startsWith("month:")) {
-      const monthId = Number(data.split(":")[1]);
-      const month = months.find((entry) => entry.id === monthId);
-      if (!month) {
-        await selectionCtx.reply("That month is no longer available. Please choose another option.");
-        continue;
+    // 2. Build Message Text
+    const totalCircleCapacity = months.reduce((sum, m) => sum + m.totalStocks, 0);
+    const payMonthly = state.stockCount * activeCircle.monthlyAmount;
+    // Receive Monthly = Stock Count * (Total Circle Capacity * Monthly Amount)
+    // Assumption: "Receive Monthly" means the total payout the user gets when it's their turn.
+    const receiveMonthly = state.stockCount * (totalCircleCapacity * activeCircle.monthlyAmount);
+
+    let text = `<b>${activeCircle.name}</b>\n`;
+    text += `Stock Cost: ${activeCircle.monthlyAmount} SAR\n\n`;
+
+    if (selectedMonth) {
+      text += `📅 <b>Month:</b> ${selectedMonth.name}\n`;
+      text += `🔢 <b>Stocks:</b> ${state.stockCount}\n`;
+      text += `💸 <b>Pay Monthly:</b> ${payMonthly.toFixed(2)} SAR\n`;
+      text += `💰 <b>Receive Monthly:</b> ${receiveMonthly.toFixed(2)} SAR\n`;
+      text += `\n<i>Confirm your subscription below.</i>`;
+    } else {
+      text += `Please select a month to view details and subscribe.`;
+    }
+
+    // 3. Build Keyboard
+    const keyboard = new InlineKeyboard();
+
+    if (!selectedMonth) {
+      // Month Selection Mode
+      selectableMonths.forEach((month, idx) => {
+        keyboard.text(`${month.name} (${month.remainingStocks})`, `select_month:${month.id}`);
+        if (idx % 2 === 1) keyboard.row();
+      });
+      if (selectableMonths.length === 0) {
+        text += "\n\n⚠️ No months available.";
       }
-      return { finished: false, month };
-    }
-
-    await selectionCtx.reply("Please pick one of the provided month options.");
-  }
-}
-
-function buildStockKeyboard(max: number): InlineKeyboard {
-  const keyboard = new InlineKeyboard();
-  const limit = Math.min(max, 8);
-
-  for (let i = 1; i <= limit; i++) {
-    keyboard.text(String(i), `stock:${i}`);
-    if (i % 4 === 0 && i !== limit) {
+      keyboard.row().text("❌ Cancel", "cancel");
+    } else {
+      // Detail/Edit Mode
+      // Stock controls
+      const maxStocks = selectedMonth.remainingStocks;
+      
+      keyboard.text("➖", "stock:dec");
+      keyboard.text(`${state.stockCount}`, "noop");
+      keyboard.text("➕", "stock:inc");
       keyboard.row();
-    }
-  }
-
-  if (max > limit) {
-    keyboard.row();
-    keyboard.text("Other", "stock:other");
-  }
-
-  return keyboard;
-}
-
-async function waitForStockCount(
-  conversation: MyConversation,
-  max: number,
-): Promise<number | null> {
-  while (true) {
-    const nextCtx = await conversation.wait();
-
-    if (nextCtx.callbackQuery?.data?.startsWith("stock:")) {
-      const value = nextCtx.callbackQuery.data.split(":")[1];
-      await nextCtx.answerCallbackQuery();
-      if (value === "other") {
-        await nextCtx.reply(`Send a number between 1 and ${max}.`);
-        continue;
-      }
-      const num = Number(value);
-      if (Number.isInteger(num) && num >= 1 && num <= max) {
-        return num;
-      }
-      await nextCtx.reply(`Please pick a value between 1 and ${max}.`);
-      continue;
+      
+      keyboard.text("🔙 Change Month", "back_to_months");
+      keyboard.row();
+      
+      keyboard.text("✅ Confirm Subscription", "confirm");
+      keyboard.row();
+      keyboard.text("❌ Cancel", "cancel");
     }
 
-    if (nextCtx.message?.text) {
-      const num = Number(nextCtx.message.text.trim());
-      if (Number.isInteger(num) && num >= 1 && num <= max) {
-        return num;
+    // 4. Send or Edit Message
+    if (messageId) {
+      try {
+        await ctx.api.editMessageText(ctx.chat!.id, messageId, text, {
+          parse_mode: "HTML",
+          reply_markup: keyboard,
+        });
+      } catch (e) {
+        // Ignore "message is not modified" errors
       }
-      await nextCtx.reply(`Please send a whole number between 1 and ${max}.`);
-      continue;
+    } else {
+      const msg = await ctx.reply(text, {
+        parse_mode: "HTML",
+        reply_markup: keyboard,
+      });
+      messageId = msg.message_id;
     }
 
-    await nextCtx.reply("Use the buttons or send a number to continue.");
-  }
-}
+    // 5. Wait for Action
+    const update = await conversation.waitFor("callback_query:data");
+    const data = update.callbackQuery.data;
+    await update.answerCallbackQuery();
 
-async function waitForConfirmation(
-  conversation: MyConversation,
-): Promise<boolean> {
-  while (true) {
-    const confirmCtx = await conversation.waitFor("callback_query:data");
-    const data = confirmCtx.callbackQuery?.data;
-    await confirmCtx.answerCallbackQuery();
+    // 6. Handle Actions
+    if (data === "cancel") {
+      await ctx.api.deleteMessage(ctx.chat!.id, messageId!);
+      await ctx.reply("Subscription cancelled.");
+      return;
+    }
+
+    if (data.startsWith("select_month:")) {
+      const monthId = Number(data.split(":")[1]);
+      state.monthId = monthId;
+      state.stockCount = 1; // Reset stock count on new month selection
+    }
+
+    if (data === "back_to_months") {
+      state.monthId = undefined;
+    }
+
+    if (data === "stock:inc") {
+      if (selectedMonth && state.stockCount < selectedMonth.remainingStocks) {
+        state.stockCount++;
+      }
+    }
+
+    if (data === "stock:dec") {
+      if (state.stockCount > 1) {
+        state.stockCount--;
+      }
+    }
 
     if (data === "confirm") {
-      return true;
+      if (!selectedMonth) continue;
+
+      // Final validation
+      const latestMonth = await ctx.db.query.circleMonths.findFirst({
+        where: eq(circleMonths.id, selectedMonth.id),
+        with: { stocks: true },
+      });
+
+      if (!latestMonth) {
+        await ctx.reply("Selected month is no longer available.");
+        state.monthId = undefined;
+        continue;
+      }
+
+      const [freshAvailability] = computeMonthAvailability([latestMonth]);
+      if (!freshAvailability || freshAvailability.remainingStocks < state.stockCount) {
+        await ctx.reply("Not enough stocks remaining. Please adjust.");
+        continue;
+      }
+
+      // Save to DB
+      await ctx.db.insert(stocks as any).values({
+        circleId: activeCircle.id,
+        userId: user.id,
+        monthId: selectedMonth.id,
+        stockCount: state.stockCount,
+        status: "confirmed", // Auto-confirm for now as per previous flow logic
+      });
+
+      await ctx.api.deleteMessage(ctx.chat!.id, messageId!);
+      await ctx.reply(
+        `✅ <b>Subscribed!</b>\n\n` +
+        `Circle: ${activeCircle.name}\n` +
+        `Month: ${selectedMonth.name}\n` +
+        `Stocks: ${state.stockCount}\n` +
+        `Pay Monthly: ${payMonthly.toFixed(2)} SAR\n` +
+        `Receive: ${receiveMonthly.toFixed(2)} SAR`,
+        { parse_mode: "HTML" }
+      );
+      return;
     }
-    if (data === "cancel") {
-      return false;
-    }
-
-    await confirmCtx.reply("Please use the buttons to confirm or cancel.");
-  }
-}
-
-async function askToContinue(
-  conversation: MyConversation,
-  ctx: MyContext,
-): Promise<boolean> {
-  await ctx.reply("Would you like to subscribe to another month?", {
-    reply_markup: continueKeyboard,
-  });
-
-  while (true) {
-    const decisionCtx = await conversation.waitFor("callback_query:data");
-    const data = decisionCtx.callbackQuery?.data;
-    await decisionCtx.answerCallbackQuery();
-
-    if (data === "continue:more") {
-      return true;
-    }
-    if (data === "continue:done") {
-      return false;
-    }
-
-    await decisionCtx.reply("Please use the buttons to continue or finish.");
   }
 }
