@@ -5,6 +5,7 @@ import { createCircleConversation } from "./conversations/createCircle";
 import { subscribeConversation } from "./conversations/subscribe";
 import { circles } from "./db/schema";
 import type { MyContext } from "./lib/context";
+import { setCommandsForUser } from "./lib/commands";
 import { db } from "./lib/db";
 import { requireAdmin, userMiddleware } from "./lib/users";
 import { adminMainMenu } from "./menus/admin";
@@ -27,6 +28,10 @@ bot.use(createConversation(subscribeConversation, { plugins: [dbMiddleware, user
 bot.use(createConversation(createCircleConversation, { plugins: [dbMiddleware, userMiddleware] }));
 
 bot.command("start", async (ctx) => {
+  // Set commands for user to ensure they're up to date
+  if (ctx.from && ctx.user) {
+    await setCommandsForUser(ctx.api, ctx.from.id, ctx.user.isAdmin);
+  }
   await ctx.reply("Hello! Use /subscribe to reserve stocks in the current circle.");
 });
 

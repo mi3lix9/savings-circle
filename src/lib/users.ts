@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { users } from "../db/schema";
+import { setCommandsForUser } from "./commands";
 import type { MyContext } from "./context";
 
 export type UserRecord = typeof users.$inferSelect;
@@ -15,6 +16,10 @@ export async function userMiddleware(ctx: MyContext, next: () => Promise<void>) 
   });
   if (existing) {
     ctx.user = existing;
+    // Set commands for existing user
+    if (ctx.from) {
+      await setCommandsForUser(ctx.api, ctx.from.id, existing.isAdmin);
+    }
     return next();
   }
 
@@ -32,6 +37,10 @@ export async function userMiddleware(ctx: MyContext, next: () => Promise<void>) 
     throw new Error("Unable to create user record.");
   }
   ctx.user = created;
+  // Set commands for newly created user
+  if (ctx.from) {
+    await setCommandsForUser(ctx.api, ctx.from.id, created.isAdmin);
+  }
   return next();
 }
 
