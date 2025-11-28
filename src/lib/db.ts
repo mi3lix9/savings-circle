@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/bun-sql';
-
-export const db = drizzle(process.env.DATABASE_URL!);
+import * as schema from '../db/schema';
+export const db = drizzle(process.env.DATABASE_URL!, { schema });
 
 export type Database = typeof db;
