@@ -193,3 +193,17 @@ common-stocks = stocks
 common-month = month
 common-months = months
 common-sar = SAR
+
+# Payment
+payment-upload-proof = Please upload a screenshot or document as proof of your payment.
+payment-invalid-file = I couldn't understand that file. Please send a photo or document, or use /cancel to stop.
+payment-cancelled = Payment process cancelled.
+payment-select-months = Select the month(s) this payment should be applied to.
+payment-confirm = ✅ Confirm
+payment-cancel = ✖️ Cancel
+payment-no-stocks = You don't have any stocks in the active circle.
+payment-all-paid = You have already submitted proof for all your months in this circle.
+payment-success = ✅ Your payment proof has been saved. Thank you!
+
+# Scheduler
+payment-reminder = 🔔 Reminder: Payment for { $monthName } in circle "{ $circleName }" is due. Please use /pay to submit your proof.

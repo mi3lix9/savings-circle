@@ -10,11 +10,20 @@ export async function userMiddleware(ctx: MyContext, next: () => Promise<void>) 
     throw new Error("Missing Telegram user information.");
   }
   const telegramId = String(ctx.from.id);
+  const languageCode = ctx.from.language_code;
 
   const existing = await ctx.db.query.users.findFirst({
     where: eq(users.telegramId, telegramId),
   });
   if (existing) {
+    // Update language code if it has changed
+    if (languageCode && existing.languageCode !== languageCode) {
+      await ctx.db
+        .update(users as any)
+        .set({ languageCode })
+        .where(eq(users.id, existing.id));
+      existing.languageCode = languageCode;
+    }
     ctx.user = existing;
     // Set commands for existing user
     if (ctx.from) {
@@ -29,7 +38,7 @@ export async function userMiddleware(ctx: MyContext, next: () => Promise<void>) 
 
   const [created] = await ctx.db
     .insert(users)
-    .values({ telegramId, isAdmin })
+    .values({ telegramId, isAdmin, languageCode })
     .onConflictDoNothing({ target: [users.telegramId] })
     .returning();
 

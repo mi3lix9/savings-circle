@@ -1,26 +1,21 @@
 import { conversations, createConversation } from "@grammyjs/conversations";
-import { I18n } from "@grammyjs/i18n";
 import { Bot } from "grammy";
 import { eq } from "drizzle-orm";
 import { createCircleConversation } from "./conversations/createCircle";
 import { subscribeConversation } from "./conversations/subscribe";
+import { paymentConversation } from "./conversations/payment";
 import { onboarding } from "./conversations/onboarding";
 import { circles } from "./db/schema";
 import type { MyContext } from "./lib/context";
 import { setCommandsForUser } from "./lib/commands";
 import { db } from "./lib/db";
 import { getLocalizedMonthName, getUserTurns, wrapForLocale } from "./lib/helpers";
+import { i18n } from "./lib/i18n";
 import { requireAdmin, userMiddleware } from "./lib/users";
+import { startScheduler } from "./lib/scheduler";
 import { adminMainMenu } from "./menus/admin";
 
 const bot = new Bot<MyContext>(process.env.BOT_TOKEN!);
-
-// Configure i18n
-const i18n = new I18n<MyContext>({
-  defaultLocale: "ar",
-  directory: "locales",
-  localeNegotiator: (ctx) => ctx.from?.language_code ?? "en",
-});
 
 const dbMiddleware = async (ctx: MyContext, next: () => Promise<void>) => {
   ctx.db = db;
@@ -38,6 +33,7 @@ bot.use(conversations());
 bot.use(createConversation(subscribeConversation, { plugins: [dbMiddleware, userMiddleware, i18n] }));
 bot.use(createConversation(createCircleConversation, { plugins: [dbMiddleware, userMiddleware, i18n] }));
 bot.use(createConversation(onboarding, { plugins: [dbMiddleware, userMiddleware, i18n] }));
+bot.use(createConversation(paymentConversation, { plugins: [dbMiddleware, userMiddleware, i18n] }));
 
 bot.command("start", async (ctx) => {
   // Set commands for user to ensure they're up to date
@@ -49,6 +45,14 @@ bot.command("start", async (ctx) => {
 
 bot.command("subscribe", async (ctx) => {
   await ctx.conversation.enter("subscribeConversation");
+});
+
+bot.command("pay", async (ctx) => {
+  await ctx.conversation.enter("paymentConversation");
+});
+
+bot.on([":photo", ":document"], async (ctx) => {
+  await ctx.conversation.enter("paymentConversation");
 });
 
 bot.command("myturn", async (ctx) => {
@@ -155,5 +159,6 @@ bot.catch(({ error }) => {
 bot.start({
   onStart(botInfo) {
     console.log(`Bot started as https://t.me/${botInfo.username}`);
+    startScheduler(bot);
   },
 });

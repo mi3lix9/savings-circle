@@ -15,6 +15,13 @@
       "when": 1764369246617,
       "tag": "0001_mushy_komodo",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1764387696087,
+      "tag": "0002_abandoned_ronan",
+      "breakpoints": true
     }
   ]
 }

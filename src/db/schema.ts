@@ -8,6 +8,7 @@ export const users = sqliteTable('users', {
   firstName: text(),
   lastName: text(),
   phone: text(),
+  languageCode: text(),
   isAdmin: integer({ mode: 'boolean' }).notNull().default(false),
   createdAt: integer({ mode: 'timestamp' }).default(sql`(unixepoch())`).notNull()
 });
@@ -92,9 +93,13 @@ export const payments = sqliteTable(
     monthId: integer()
       .notNull()
       .references(() => circleMonths.id, { onDelete: 'cascade' }),
-    paid: integer({ mode: 'boolean' }).notNull().default(false),
-    paidAt: integer({ mode: 'timestamp' }),
-    invoiceUrl: text(),
+    fileId: text().notNull(),
+    status: text({ enum: ['paid', 'pending', 'rejected'] })
+      .notNull()
+      .default('paid'),
+    paidAt: integer({ mode: 'timestamp' })
+      .notNull()
+      .default(sql`(unixepoch())`),
     createdAt: integer({ mode: 'timestamp' })
       .notNull()
       .default(sql`(unixepoch())`),
