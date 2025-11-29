@@ -73,7 +73,7 @@ export async function subscribeConversation(
     }
 
     // 2. Build Message Text
-    const totalCircleCapacity = months.reduce((sum, m) => sum + m.totalStocks, 0);
+    const numberOfMonths = months.length;
 
     let text = `<b>${activeCircle.name}</b>\n`;
     text += `Stock Cost: ${activeCircle.monthlyAmount} SAR\n\n`;
@@ -88,7 +88,7 @@ export async function subscribeConversation(
       });
 
       const cartPayMonthly = cartTotalStocks * activeCircle.monthlyAmount;
-      const cartReceiveMonthly = cartTotalStocks * (totalCircleCapacity * activeCircle.monthlyAmount);
+      const cartReceiveMonthly = cartTotalStocks * activeCircle.monthlyAmount * numberOfMonths;
 
       text += `\n<b>Total Pay Monthly:</b> ${cartPayMonthly.toFixed(2)} SAR`;
       text += `\n<b>Total Receive:</b> ${cartReceiveMonthly.toFixed(2)} SAR\n\n`;
@@ -97,7 +97,7 @@ export async function subscribeConversation(
     if (selectedMonth) {
       // Editing/Adding a specific month
       const payMonthly = state.stockCount * activeCircle.monthlyAmount;
-      const receiveMonthly = state.stockCount * (totalCircleCapacity * activeCircle.monthlyAmount);
+      const receiveMonthly = state.stockCount * activeCircle.monthlyAmount * numberOfMonths;
 
       text += `📅 <b>Month:</b> ${selectedMonth.name}\n`;
       text += `🔢 <b>Stocks:</b> ${state.stockCount}\n`;
@@ -270,13 +270,16 @@ export async function subscribeConversation(
 
       await ctx.api.deleteMessage(ctx.chat!.id, messageId!);
 
+      // Get number of months for the calculation
+      const numberOfMonths = latestMonths.length;
+
       let summaryText = `✅ <b>Subscribed Successfully!</b>\n\n`;
       let totalPay = 0;
       let totalReceive = 0;
 
       state.cart.forEach(item => {
         const pay = item.stockCount * activeCircle.monthlyAmount;
-        const receive = item.stockCount * (totalCircleCapacity * activeCircle.monthlyAmount);
+        const receive = item.stockCount * activeCircle.monthlyAmount * numberOfMonths;
         summaryText += `• <b>${item.monthName}</b>: ${item.stockCount} stocks\n`;
         totalPay += pay;
         totalReceive += receive;
