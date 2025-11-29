@@ -1,6 +1,7 @@
 # Commands
 commands-start = Begin registration and see welcome message
 commands-subscribe = Pick months and stocks for the current circle
+commands-myturn = See your payout schedule
 commands-create-circle = Create a new savings circle
 commands-start-circle = Lock the current circle to start subscriptions
 commands-admin = Open admin panel
@@ -152,6 +153,18 @@ admin-circle-status-locked = 🔒
 admin-circle-status-active = ✅
 
 admin-month-filled-info = { $monthName }: { $filled }/{ $total } filled
+
+# MyTurn
+myturn-title = 📅 <b>Your Payout Schedule</b>
+myturn-monthly-payout = 💰 <b>Monthly Payout:</b> { $amount } SAR
+myturn-month-item = • <b>{ $monthName }</b>: { $amount } SAR ({ $stockCount } stock(s)) — { $status }
+myturn-months-until = { $months } { $months ->
+  [1] month
+  *[other] months
+} until
+myturn-already-gone = Already gone
+myturn-current = Current month
+myturn-no-turns = You don't have any subscriptions in locked circles yet.
 
 # Common
 common-stock = stock

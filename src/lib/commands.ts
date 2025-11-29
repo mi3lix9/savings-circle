@@ -16,12 +16,14 @@ export async function setCommandsForUser(
     const userCommands = [
       { command: "start", description: ctx.t("commands-start") },
       { command: "subscribe", description: ctx.t("commands-subscribe") },
+      { command: "myturn", description: ctx.t("commands-myturn") },
     ];
 
     // Admin commands (includes all user commands plus admin-specific ones)
     const adminCommands = [
       { command: "start", description: ctx.t("commands-start") },
       { command: "subscribe", description: ctx.t("commands-subscribe") },
+      { command: "myturn", description: ctx.t("commands-myturn") },
       { command: "create_circle", description: ctx.t("commands-create-circle") },
       { command: "start_circle", description: ctx.t("commands-start-circle") },
       { command: "admin", description: ctx.t("commands-admin") },

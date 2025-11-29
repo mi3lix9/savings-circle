@@ -1,6 +1,7 @@
 # Commands
 commands-start = ابدأ التسجيل وشاهد رسالة الترحيب
 commands-subscribe = اختر الأشهر والأسهم لدائرة الادخار الحالية
+commands-myturn = شاهد جدول الدفع الخاص بك
 commands-create-circle = إنشاء دائرة ادخار جديدة
 commands-start-circle = قفل الدائرة الحالية لبدء الاشتراكات
 commands-admin = فتح لوحة الإدارة
@@ -152,6 +153,18 @@ admin-circle-status-locked = 🔒
 admin-circle-status-active = ✅
 
 admin-month-filled-info = { $monthName }: { $filled }/{ $total } مملوء
+
+# MyTurn
+myturn-title = 📅 <b>جدول الدفع الخاص بك</b>
+myturn-monthly-payout = 💰 <b>الدفع الشهري:</b> { $amount } ريال
+myturn-month-item = • <b>{ $monthName }</b>: { $amount } ريال ({ $stockCount } سهم(أسهم)) — { $status }
+myturn-months-until = { $months } { $months ->
+  [1] شهر
+  *[other] أشهر
+} متبقي
+myturn-already-gone = انتهى
+myturn-current = الشهر الحالي
+myturn-no-turns = ليس لديك أي اشتراكات في الدوائر المقفلة بعد.
 
 # Common
 common-stock = سهم

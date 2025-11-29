@@ -9,6 +9,7 @@ import { circles } from "./db/schema";
 import type { MyContext } from "./lib/context";
 import { setCommandsForUser } from "./lib/commands";
 import { db } from "./lib/db";
+import { getUserTurns } from "./lib/helpers";
 import { requireAdmin, userMiddleware } from "./lib/users";
 import { adminMainMenu } from "./menus/admin";
 
@@ -48,6 +49,55 @@ bot.command("start", async (ctx) => {
 
 bot.command("subscribe", async (ctx) => {
   await ctx.conversation.enter("subscribeConversation");
+});
+
+bot.command("myturn", async (ctx) => {
+  const result = await getUserTurns(ctx.db, ctx.user.id);
+
+  if (result.turns.length === 0) {
+    await ctx.reply(ctx.t("myturn-no-turns"));
+    return;
+  }
+
+  let message = ctx.t("myturn-title") + "\n\n";
+  message += ctx.t("myturn-monthly-payout", { amount: result.totalMonthlyPayout.toFixed(2) }) + "\n\n";
+
+  // Group turns by circle
+  const turnsByCircle = new Map<number, typeof result.turns>();
+  for (const turn of result.turns) {
+    if (!turnsByCircle.has(turn.circleId)) {
+      turnsByCircle.set(turn.circleId, []);
+    }
+    turnsByCircle.get(turn.circleId)!.push(turn);
+  }
+
+  // Display each circle's turns
+  for (const [circleId, turns] of turnsByCircle) {
+    const firstTurn = turns[0];
+    if (!firstTurn) continue;
+    message += `📌 <b>${firstTurn.circleName}</b>\n`;
+
+    for (const turn of turns) {
+      let statusText: string;
+      if (turn.status === "past") {
+        statusText = ctx.t("myturn-already-gone");
+      } else if (turn.status === "current") {
+        statusText = ctx.t("myturn-current");
+      } else {
+        statusText = ctx.t("myturn-months-until", { months: turn.monthsUntil });
+      }
+
+      message += ctx.t("myturn-month-item", {
+        monthName: turn.monthName,
+        amount: turn.payoutAmount.toFixed(2),
+        stockCount: turn.stockCount,
+        status: statusText,
+      }) + "\n";
+    }
+    message += "\n";
+  }
+
+  await ctx.reply(message, { parse_mode: "HTML" });
 });
 
 bot.command("create_circle", async (ctx) => {
