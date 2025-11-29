@@ -1,18 +1,16 @@
-import { Menu, MenuRange } from "@grammyjs/menu";
-import type { MyContext } from "../lib/context";
+import { Menu } from "@grammyjs/menu";
 import {
   getAllUsersWithStats,
-  getUserDetails,
   getCircleStocks,
+  getUserDetails,
 } from "../lib/admin";
-import { circles } from "../db/schema";
-import { eq } from "drizzle-orm";
+import type { MyContext } from "../lib/context";
 
 // Main admin menu
 export const adminMainMenu = new Menu<MyContext>("admin-main")
   .text("👥 View All Users", async (ctx) => {
     await ctx.answerCallbackQuery();
-    await ctx.menu.nav("admin-users");
+    ctx.menu.nav("admin-users");
   })
   .row()
   .text("📊 View Stocks", async (ctx) => {
@@ -32,11 +30,11 @@ export const adminMainMenu = new Menu<MyContext>("admin-main")
 
     await ctx.reply(
       `📈 Admin Statistics\n\n` +
-        `👥 Total Users: ${totalUsers}\n` +
-        `📊 Total Stocks: ${totalStocks}\n` +
-        `🔄 Total Circles: ${totalCircles}\n` +
-        `✅ Active Circles: ${activeCircles}\n` +
-        `🔒 Locked Circles: ${totalCircles - activeCircles}`,
+      `👥 Total Users: ${totalUsers}\n` +
+      `📊 Total Stocks: ${totalStocks}\n` +
+      `🔄 Total Circles: ${totalCircles}\n` +
+      `✅ Active Circles: ${activeCircles}\n` +
+      `🔒 Locked Circles: ${totalCircles - activeCircles}`,
       { reply_markup: adminMainMenu },
     );
   });

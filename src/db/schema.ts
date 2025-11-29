@@ -5,6 +5,8 @@ import { index, integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core
 export const users = sqliteTable('users', {
   id: integer().primaryKey({ autoIncrement: true }),
   telegramId: text().notNull().unique(),
+  firstName: text(),
+  lastName: text(),
   phone: text(),
   isAdmin: integer({ mode: 'boolean' }).notNull().default(false),
   createdAt: integer({ mode: 'timestamp' }).default(sql`(unixepoch())`).notNull()

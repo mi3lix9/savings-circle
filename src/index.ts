@@ -3,6 +3,7 @@ import { Bot } from "grammy";
 import { eq } from "drizzle-orm";
 import { createCircleConversation } from "./conversations/createCircle";
 import { subscribeConversation } from "./conversations/subscribe";
+import { onboarding } from "./conversations/onboarding";
 import { circles } from "./db/schema";
 import type { MyContext } from "./lib/context";
 import { setCommandsForUser } from "./lib/commands";
@@ -26,13 +27,14 @@ bot.use(adminMainMenu);
 bot.use(conversations());
 bot.use(createConversation(subscribeConversation, { plugins: [dbMiddleware, userMiddleware] }));
 bot.use(createConversation(createCircleConversation, { plugins: [dbMiddleware, userMiddleware] }));
+bot.use(createConversation(onboarding, { plugins: [dbMiddleware, userMiddleware] }));
 
 bot.command("start", async (ctx) => {
   // Set commands for user to ensure they're up to date
   if (ctx.from && ctx.user) {
     await setCommandsForUser(ctx.api, ctx.from.id, ctx.user.isAdmin);
   }
-  await ctx.reply("Hello! Use /subscribe to reserve stocks in the current circle.");
+  await ctx.conversation.enter("onboarding");
 });
 
 bot.command("subscribe", async (ctx) => {
