@@ -5,6 +5,8 @@ import { users, circles, stocks, circleMonths, payments } from "../db/schema";
 export type UserWithStats = {
   id: number;
   telegramId: string;
+  firstName: string | null;
+  lastName: string | null;
   phone: string | null;
   isAdmin: boolean;
   createdAt: Date;
@@ -75,6 +77,8 @@ export async function getAllUsersWithStats(db: Database): Promise<UserWithStats[
     usersWithStats.push({
       id: user.id,
       telegramId: user.telegramId,
+      firstName: user.firstName,
+      lastName: user.lastName,
       phone: user.phone,
       isAdmin: user.isAdmin,
       createdAt: user.createdAt instanceof Date ? user.createdAt : new Date(Number(user.createdAt) * 1000),

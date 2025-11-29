@@ -6,6 +6,14 @@ import {
 } from "../lib/admin";
 import type { MyContext } from "../lib/context";
 
+// Helper function to format user name
+function formatUserName(user: { firstName: string | null; lastName: string | null; telegramId: string }): string {
+  const firstName = user.firstName || "";
+  const lastName = user.lastName || "";
+  const fullName = `${firstName} ${lastName}`.trim();
+  return fullName || user.telegramId;
+}
+
 // Main admin menu
 export const adminMainMenu = new Menu<MyContext>("admin-main")
   .text("👥 View All Users", async (ctx) => {
@@ -56,7 +64,8 @@ export const adminUsersMenu = new Menu<MyContext>("admin-users")
     // Show up to 20 users per page (Telegram limit is ~100 buttons)
     const usersToShow = users.slice(0, 20);
     for (const user of usersToShow) {
-      const label = `👤 ${user.telegramId} (${user.totalStocks} stocks, ${user.totalTurns} turns)`;
+      const userName = formatUserName(user);
+      const label = `👤 ${userName} (${user.totalStocks} stocks, ${user.totalTurns} turns)`;
       range.text(label, async (ctx) => {
         await ctx.answerCallbackQuery();
         const userDetails = await getUserDetails(ctx.db, user.id);
@@ -150,7 +159,8 @@ export const adminUserMenu = new Menu<MyContext>("admin-user")
             if (monthData.users.length > 0) {
               message += `  Users:\n`;
               for (const userData of monthData.users) {
-                message += `    👤 ${userData.user.telegramId}: ${userData.stockCount} stock(s)\n`;
+                const userName = formatUserName(userData.user);
+                message += `    👤 ${userName}: ${userData.stockCount} stock(s)\n`;
               }
             }
           }
@@ -211,7 +221,8 @@ export const adminCirclesMenu = new Menu<MyContext>("admin-circles")
             if (monthData.users.length > 0) {
               message += `  Users:\n`;
               for (const userData of monthData.users) {
-                message += `    👤 ${userData.user.telegramId}: ${userData.stockCount} stock(s)\n`;
+                const userName = formatUserName(userData.user);
+                message += `    👤 ${userName}: ${userData.stockCount} stock(s)\n`;
               }
             }
           }
@@ -258,7 +269,8 @@ export const adminStocksMenu = new Menu<MyContext>("admin-stocks")
         });
         range.row();
         for (const userData of monthData.users) {
-          range.text(`👤 ${userData.user.telegramId} (${userData.stockCount})`, async (ctx) => {
+          const userName = formatUserName(userData.user);
+          range.text(`👤 ${userName} (${userData.stockCount})`, async (ctx) => {
             await ctx.answerCallbackQuery();
             const userDetails = await getUserDetails(ctx.db, userData.user.id);
             if (userDetails) {
