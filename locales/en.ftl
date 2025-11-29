@@ -38,26 +38,29 @@ subscribe-circle-name = <b>{ $circleName }</b>
 subscribe-stock-cost = Stock Cost: { $amount } SAR
 
 subscribe-cart-title = 🛒 <b>Your Selections:</b>
-subscribe-cart-item = { $index }. { $monthName }: { $stockCount } stock(s)
+subscribe-cart-item = { $index }. 🗓️ { $monthName } • 🎟️ { $stockCount } { $stockCount ->
+  [1] stock
+  *[other] stocks
+}
 subscribe-total-pay-monthly = <b>Total Pay Monthly:</b> { $amount } SAR
 subscribe-total-receive = <b>Total Receive:</b> { $amount } SAR
 
-subscribe-month-detail = 📅 <b>Month:</b> { $monthName }
+subscribe-month-detail = 🗓️ <b>Month:</b> { $monthName }
 subscribe-stocks-detail = 🔢 <b>Stocks:</b> { $stockCount }
 subscribe-pay-monthly = 💸 <b>Pay Monthly:</b> { $amount } SAR
 subscribe-receive-monthly = 💰 <b>Receive Monthly:</b> { $amount } SAR
 subscribe-adjust-stocks = <i>Adjust stocks and add to your cart.</i>
 subscribe-select-month = Select a month to add to your subscription.
 
-subscribe-month-label = { $monthName } ({ $remaining })
-subscribe-month-in-cart = { $monthName } (In Cart: { $stockCount })
+subscribe-month-label = { $monthName } · { $remaining }
+subscribe-month-in-cart = { $monthName } · { $stockCount }
 subscribe-no-months-available = ⚠️ No months available.
 
-subscribe-checkout = ✅ Checkout / Confirm
-subscribe-clear-cart = 🗑 Clear Cart
-subscribe-cancel = ❌ Cancel
-subscribe-back = 🔙 Back
-subscribe-add-to-cart = 📥 Add to Cart
+subscribe-checkout = ✅ Confirm
+subscribe-clear-cart = 🧹 Clear
+subscribe-cancel = ✖️ Cancel
+subscribe-back = ◀️ Back
+subscribe-add-to-cart = ➕ Save
 
 subscribe-cancelled = Subscription cancelled.
 subscribe-success-title = ✅ <b>Subscribed Successfully!</b>
@@ -108,7 +111,7 @@ admin-back = 🔙 Back
 admin-back-to-users = 🔙 Back to Users
 admin-back-to-circles = 🔙 Back to Circles
 
-admin-user-label = 👤 { $userName } ({ $stockCount } stocks, { $turnCount } turns)
+admin-user-label = 👤 { $userName } • 🎟️ { $stockCount } • 🔁 { $turnCount }
 admin-too-many-users = Too many users to display. Showing first 20.
 admin-more-users = ... and { $count } more users
 
@@ -124,15 +127,24 @@ admin-no = No
 admin-summary-title = 📊 Summary:
 admin-total-stocks = • Total Stocks: { $count }
 admin-total-payout = • Total Payout: { $amount } SAR
-admin-next-turn = • Next Turn: { $monthName } (in { $monthsUntil } months)
+admin-next-turn = • Next Turn: { $monthName } ⏳ { $monthsUntil } { $monthsUntil ->
+  [1] month
+  *[other] months
+} away
 admin-circles-count = • Circles: { $count }
 
 admin-circles-turns = 🔄 Circles & Turns:
 admin-circle-name = 📌 { $circleName }
 admin-circle-stocks-payout =    Stocks: { $stockCount }, Payout: { $payout } SAR
 admin-turns =    Turns:
-admin-turn-paid =    ✅ { $monthName }: { $stockCount } stock(s)
-admin-turn-unpaid =    ❌ { $monthName }: { $stockCount } stock(s)
+admin-turn-paid =    ✅ { $monthName } • 🎟️ { $stockCount } { $stockCount ->
+      [1] stock
+      *[other] stocks
+    }
+admin-turn-unpaid =    ❌ { $monthName } • 🎟️ { $stockCount } { $stockCount ->
+      [1] stock
+      *[other] stocks
+    }
 
 admin-stocks-title = 📊 Stocks: { $circleName }
 admin-summary-label = 📈 Summary:
@@ -143,27 +155,36 @@ admin-empty = • Empty: { $count }
 admin-fill-rate = • Fill Rate: { $percentage }%
 
 admin-monthly-breakdown = 📅 Monthly Breakdown:
-admin-month-stats = { $monthName }
-admin-month-totals =   Total: { $total }, Filled: { $filled }, Empty: { $empty }
+admin-month-stats = 🗓️ { $monthName }
+admin-month-totals =   🎯 Total: { $total } • ✅ Filled: { $filled } • ⚪ Empty: { $empty }
 admin-month-fill =   Fill: { $percentage }%
 admin-month-users =   Users:
-admin-month-user =     👤 { $userName }: { $stockCount } stock(s)
+admin-month-user =     👤 { $userName } • 🎟️ { $stockCount } { $stockCount ->
+      [1] stock
+      *[other] stocks
+    }
 
 admin-circle-status-locked = 🔒
 admin-circle-status-active = ✅
 
-admin-month-filled-info = { $monthName }: { $filled }/{ $total } filled
+admin-month-filled-info = 🧮 { $monthName } • { $filled }/{ $total } filled
 
 # MyTurn
 myturn-title = 📅 <b>Your Payout Schedule</b>
 myturn-monthly-payout = 💰 <b>Monthly Payout:</b> { $amount } SAR
-myturn-month-item = • <b>{ $monthName }</b>: { $amount } SAR ({ $stockCount } stock(s)) — { $status }
-myturn-months-until = { $months } { $months ->
+myturn-month-item =
+    🗓️ <b>{ $monthName }</b>
+    💵 { $amount } SAR • 🎟️ { $stockCount } { $stockCount ->
+        [1] stock
+        *[other] stocks
+    }
+    📍 { $status }
+myturn-months-until = ⏳ { $months } { $months ->
   [1] month
   *[other] months
-} until
-myturn-already-gone = Already gone
-myturn-current = Current month
+} to go
+myturn-already-gone = ✅ Already received
+myturn-current = 📅 This month
 myturn-no-turns = You don't have any subscriptions in locked circles yet.
 
 # Common
@@ -172,4 +193,3 @@ common-stocks = stocks
 common-month = month
 common-months = months
 common-sar = SAR
-

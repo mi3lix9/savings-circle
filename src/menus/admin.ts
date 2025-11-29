@@ -5,6 +5,7 @@ import {
   getUserDetails,
 } from "../lib/admin";
 import type { MyContext } from "../lib/context";
+import { getLocalizedMonthName, wrapForLocale } from "../lib/helpers";
 
 // Helper function to format user name
 function formatUserName(user: { firstName: string | null; lastName: string | null; telegramId: string }): string {
@@ -28,6 +29,7 @@ export const adminMainMenu = new Menu<MyContext>("admin-main")
   .row()
   .text((ctx) => ctx.t("admin-statistics"), async (ctx) => {
     await ctx.answerCallbackQuery();
+    const locale = await ctx.i18n.getLocale();
     const users = await getAllUsersWithStats(ctx.db);
     const allCircles = await ctx.db.query.circles.findMany();
 
@@ -36,15 +38,15 @@ export const adminMainMenu = new Menu<MyContext>("admin-main")
     const totalCircles = allCircles.length;
     const activeCircles = allCircles.filter((c) => !c.isLocked).length;
 
-    await ctx.reply(
+    const message =
       ctx.t("admin-stats-title") + "\n\n" +
       ctx.t("admin-total-users", { count: totalUsers }) + "\n" +
       ctx.t("admin-total-stocks", { count: totalStocks }) + "\n" +
       ctx.t("admin-total-circles", { count: totalCircles }) + "\n" +
       ctx.t("admin-active-circles", { count: activeCircles }) + "\n" +
-      ctx.t("admin-locked-circles", { count: totalCircles - activeCircles }),
-      { reply_markup: adminMainMenu },
-    );
+      ctx.t("admin-locked-circles", { count: totalCircles - activeCircles });
+
+    await ctx.reply(wrapForLocale(message, locale), { reply_markup: adminMainMenu });
   });
 
 // Users list menu
@@ -67,6 +69,8 @@ export const adminUsersMenu = new Menu<MyContext>("admin-users")
       const userName = formatUserName(user);
       range.text((ctx) => ctx.t("admin-user-label", { userName, stockCount: user.totalStocks, turnCount: user.totalTurns }), async (ctx) => {
         await ctx.answerCallbackQuery();
+        const locale = await ctx.i18n.getLocale();
+        const formatMonthName = (name: string) => getLocalizedMonthName(name, locale);
         const userDetails = await getUserDetails(ctx.db, user.id);
         if (userDetails) {
           const { user: u, circles: userCircles, totalStocks, totalPayout, nextTurn } = userDetails;
@@ -79,7 +83,7 @@ export const adminUsersMenu = new Menu<MyContext>("admin-users")
           message += ctx.t("admin-total-stocks", { count: totalStocks }) + "\n";
           message += ctx.t("admin-total-payout", { amount: totalPayout.toFixed(2) }) + "\n";
           if (nextTurn) {
-            message += ctx.t("admin-next-turn", { monthName: nextTurn.month.name, monthsUntil: nextTurn.monthsUntil }) + "\n";
+            message += ctx.t("admin-next-turn", { monthName: formatMonthName(nextTurn.month.name), monthsUntil: nextTurn.monthsUntil }) + "\n";
           }
           message += ctx.t("admin-circles-count", { count: userCircles.length }) + "\n\n";
           if (userCircles.length > 0) {
@@ -90,16 +94,17 @@ export const adminUsersMenu = new Menu<MyContext>("admin-users")
               message += ctx.t("admin-turns") + "\n";
               for (const stockData of circleData.stocks) {
                 const paid = stockData.payment?.paid;
+                const monthName = formatMonthName(stockData.month.name);
                 message += paid
-                  ? ctx.t("admin-turn-paid", { monthName: stockData.month.name, stockCount: stockData.stock.stockCount }) + "\n"
-                  : ctx.t("admin-turn-unpaid", { monthName: stockData.month.name, stockCount: stockData.stock.stockCount }) + "\n";
+                  ? ctx.t("admin-turn-paid", { monthName, stockCount: stockData.stock.stockCount }) + "\n"
+                  : ctx.t("admin-turn-unpaid", { monthName, stockCount: stockData.stock.stockCount }) + "\n";
               }
             }
           }
           if (message.length > 4000) {
             message = message.substring(0, 4000) + "\n\n... (truncated)";
           }
-          await ctx.editMessageText(message);
+          await ctx.editMessageText(wrapForLocale(message, locale));
         }
         (ctx.menu.nav as any)("admin-user", String(user.id));
       });
@@ -142,6 +147,8 @@ export const adminUserMenu = new Menu<MyContext>("admin-user")
     for (const circleData of userCircles) {
       range.text((ctx) => ctx.t("admin-circle-name", { circleName: circleData.circle.name }), async (ctx) => {
         await ctx.answerCallbackQuery();
+        const locale = await ctx.i18n.getLocale();
+        const formatMonthName = (name: string) => getLocalizedMonthName(name, locale);
         const circleStocks = await getCircleStocks(ctx.db, circleData.circle.id);
         if (circleStocks) {
           const { circle: c, months, summary } = circleStocks;
@@ -154,7 +161,7 @@ export const adminUserMenu = new Menu<MyContext>("admin-user")
           message += ctx.t("admin-fill-rate", { percentage: summary.overallFillPercentage.toFixed(1) }) + "\n\n";
           message += ctx.t("admin-monthly-breakdown") + "\n";
           for (const monthData of months) {
-            message += "\n" + ctx.t("admin-month-stats", { monthName: monthData.month.name }) + "\n";
+            message += "\n" + ctx.t("admin-month-stats", { monthName: formatMonthName(monthData.month.name) }) + "\n";
             message += ctx.t("admin-month-totals", { total: monthData.totalStocks, filled: monthData.filledStocks, empty: monthData.emptyStocks }) + "\n";
             message += ctx.t("admin-month-fill", { percentage: monthData.fillPercentage.toFixed(1) }) + "\n";
             if (monthData.users.length > 0) {
@@ -168,7 +175,7 @@ export const adminUserMenu = new Menu<MyContext>("admin-user")
           if (message.length > 4000) {
             message = message.substring(0, 4000) + "\n\n... (truncated)";
           }
-          await ctx.editMessageText(message);
+          await ctx.editMessageText(wrapForLocale(message, locale));
         }
         (ctx.menu.nav as any)("admin-stocks", String(circleData.circle.id));
       });
@@ -205,6 +212,8 @@ export const adminCirclesMenu = new Menu<MyContext>("admin-circles")
         return `${status} ${circle.name}`;
       }, async (ctx) => {
         await ctx.answerCallbackQuery();
+        const locale = await ctx.i18n.getLocale();
+        const formatMonthName = (name: string) => getLocalizedMonthName(name, locale);
         const circleStocks = await getCircleStocks(ctx.db, circle.id);
         if (circleStocks) {
           const { circle: c, months, summary } = circleStocks;
@@ -217,7 +226,7 @@ export const adminCirclesMenu = new Menu<MyContext>("admin-circles")
           message += ctx.t("admin-fill-rate", { percentage: summary.overallFillPercentage.toFixed(1) }) + "\n\n";
           message += ctx.t("admin-monthly-breakdown") + "\n";
           for (const monthData of months) {
-            message += "\n" + ctx.t("admin-month-stats", { monthName: monthData.month.name }) + "\n";
+            message += "\n" + ctx.t("admin-month-stats", { monthName: formatMonthName(monthData.month.name) }) + "\n";
             message += ctx.t("admin-month-totals", { total: monthData.totalStocks, filled: monthData.filledStocks, empty: monthData.emptyStocks }) + "\n";
             message += ctx.t("admin-month-fill", { percentage: monthData.fillPercentage.toFixed(1) }) + "\n";
             if (monthData.users.length > 0) {
@@ -231,7 +240,7 @@ export const adminCirclesMenu = new Menu<MyContext>("admin-circles")
           if (message.length > 4000) {
             message = message.substring(0, 4000) + "\n\n... (truncated)";
           }
-          await ctx.editMessageText(message);
+          await ctx.editMessageText(wrapForLocale(message, locale));
         }
         (ctx.menu.nav as any)("admin-stocks", String(circle.id));
       });
@@ -266,14 +275,25 @@ export const adminStocksMenu = new Menu<MyContext>("admin-stocks")
     // Add buttons for users in each month
     for (const monthData of months) {
       if (monthData.users.length > 0) {
-        range.text((ctx) => ctx.t("admin-month-stats", { monthName: monthData.month.name }), (ctx) => {
-          ctx.answerCallbackQuery({ text: ctx.t("admin-month-filled-info", { monthName: monthData.month.name, filled: monthData.filledStocks, total: monthData.totalStocks }) });
-        });
+        range.text(
+          async (ctx) => {
+            const locale = await ctx.i18n.getLocale();
+            const monthName = getLocalizedMonthName(monthData.month.name, locale);
+            return ctx.t("admin-month-stats", { monthName });
+          },
+          async (ctx) => {
+            const locale = await ctx.i18n.getLocale();
+            const monthLabel = getLocalizedMonthName(monthData.month.name, locale);
+            await ctx.answerCallbackQuery({ text: ctx.t("admin-month-filled-info", { monthName: monthLabel, filled: monthData.filledStocks, total: monthData.totalStocks }) });
+          },
+        );
         range.row();
         for (const userData of monthData.users) {
           const userName = formatUserName(userData.user);
           range.text((ctx) => `👤 ${userName} (${userData.stockCount})`, async (ctx) => {
             await ctx.answerCallbackQuery();
+            const locale = await ctx.i18n.getLocale();
+            const formatMonthName = (name: string) => getLocalizedMonthName(name, locale);
             const userDetails = await getUserDetails(ctx.db, userData.user.id);
             if (userDetails) {
               const { user: u, circles: userCircles, totalStocks, totalPayout, nextTurn } = userDetails;
@@ -287,7 +307,7 @@ export const adminStocksMenu = new Menu<MyContext>("admin-stocks")
               message += ctx.t("admin-total-stocks", { count: totalStocks }) + "\n";
               message += ctx.t("admin-total-payout", { amount: totalPayout.toFixed(2) }) + "\n";
               if (nextTurn) {
-                message += ctx.t("admin-next-turn", { monthName: nextTurn.month.name, monthsUntil: nextTurn.monthsUntil }) + "\n";
+                message += ctx.t("admin-next-turn", { monthName: formatMonthName(nextTurn.month.name), monthsUntil: nextTurn.monthsUntil }) + "\n";
               }
               message += ctx.t("admin-circles-count", { count: userCircles.length }) + "\n\n";
               if (userCircles.length > 0) {
@@ -298,16 +318,17 @@ export const adminStocksMenu = new Menu<MyContext>("admin-stocks")
                   message += ctx.t("admin-turns") + "\n";
                   for (const stockData of circleData.stocks) {
                     const paid = stockData.payment?.paid;
+                    const monthName = formatMonthName(stockData.month.name);
                     message += paid
-                      ? ctx.t("admin-turn-paid", { monthName: stockData.month.name, stockCount: stockData.stock.stockCount }) + "\n"
-                      : ctx.t("admin-turn-unpaid", { monthName: stockData.month.name, stockCount: stockData.stock.stockCount }) + "\n";
+                      ? ctx.t("admin-turn-paid", { monthName, stockCount: stockData.stock.stockCount }) + "\n"
+                      : ctx.t("admin-turn-unpaid", { monthName, stockCount: stockData.stock.stockCount }) + "\n";
                   }
                 }
               }
               if (message.length > 4000) {
                 message = message.substring(0, 4000) + "\n\n... (truncated)";
               }
-              await ctx.editMessageText(message);
+              await ctx.editMessageText(wrapForLocale(message, locale));
             }
             (ctx.menu.nav as any)("admin-user", String(userData.user.id));
           });
@@ -328,4 +349,3 @@ adminMainMenu.register(adminUsersMenu);
 adminMainMenu.register(adminUserMenu);
 adminMainMenu.register(adminCirclesMenu);
 adminMainMenu.register(adminStocksMenu);
-

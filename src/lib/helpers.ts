@@ -4,6 +4,63 @@ import type { InferSelectModel } from "drizzle-orm";
 import { type circleMonths, stocks, type circles } from "../db/schema";
 import type { Database } from "./db";
 
+const ARABIC_MONTH_NAMES: Record<string, string> = {
+  January: "يناير",
+  February: "فبراير",
+  March: "مارس",
+  April: "أبريل",
+  May: "مايو",
+  June: "يونيو",
+  July: "يوليو",
+  August: "أغسطس",
+  September: "سبتمبر",
+  October: "أكتوبر",
+  November: "نوفمبر",
+  December: "ديسمبر",
+};
+
+export type BilingualMonthName = {
+  english: string;
+  arabic: string;
+};
+
+export function getBilingualMonthName(monthName: string): BilingualMonthName {
+  const trimmed = monthName.trim();
+  if (!trimmed) {
+    return { english: "", arabic: "" };
+  }
+
+  const [rawMonth, ...rest] = trimmed.split(" ");
+  const normalizedMonth = rawMonth.replace(/[^A-Za-z]/g, "");
+  const arabicMonth = ARABIC_MONTH_NAMES[normalizedMonth] || normalizedMonth || trimmed;
+  const remainder = rest.join(" ").trim();
+  const arabic = remainder ? `${arabicMonth} ${remainder}` : arabicMonth;
+
+  return {
+    english: trimmed,
+    arabic,
+  };
+}
+
+export function getLocalizedMonthName(monthName: string, locale?: string | null): string {
+  const bilingual = getBilingualMonthName(monthName);
+  if (!locale) return bilingual.english;
+  const normalizedLocale = locale.toLowerCase();
+  if (normalizedLocale.startsWith("ar")) {
+    return bilingual.arabic;
+  }
+  return bilingual.english;
+}
+
+export function wrapForLocale(text: string, locale?: string | null): string {
+  if (!locale) return text;
+  const normalizedLocale = locale.toLowerCase();
+  if (normalizedLocale.startsWith("ar")) {
+    return `\u202B${text}\u202C`;
+  }
+  return text;
+}
+
 export type CircleMonthWithStocks = InferSelectModel<typeof circleMonths> & {
   stocks: InferSelectModel<typeof stocks>[];
 };
@@ -33,8 +90,9 @@ export function computeMonthAvailability(
     .sort((a, b) => a.index - b.index);
 }
 
-export function formatMonthLabel(month: MonthAvailability): string {
-  return `${month.name} (${month.remainingStocks} left)`;
+export function formatMonthLabel(month: MonthAvailability, locale?: string | null): string {
+  const monthLabel = getLocalizedMonthName(month.name, locale);
+  return `${monthLabel} · ${month.remainingStocks}`;
 }
 
 export function buildMonthKeyboard(
@@ -42,12 +100,13 @@ export function buildMonthKeyboard(
   options?: {
     includeRandom?: boolean;
     includeFinish?: boolean;
+    locale?: string;
   },
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
   months.forEach((month, idx) => {
-    keyboard.text(formatMonthLabel(month), `month:${month.id}`);
+    keyboard.text(formatMonthLabel(month, options?.locale), `month:${month.id}`);
     if (idx % 2 === 1) {
       keyboard.row();
     }

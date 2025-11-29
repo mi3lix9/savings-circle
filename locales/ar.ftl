@@ -38,26 +38,29 @@ subscribe-circle-name = <b>{ $circleName }</b>
 subscribe-stock-cost = تكلفة السهم: { $amount } ريال
 
 subscribe-cart-title = 🛒 <b>اختياراتك:</b>
-subscribe-cart-item = { $index }. { $monthName }: { $stockCount } سهم(أسهم)
+subscribe-cart-item = { $index }. 🗓️ { $monthName } • 🎟️ { $stockCount } { $stockCount ->
+  [1] سهم
+  *[other] أسهم
+}
 subscribe-total-pay-monthly = <b>إجمالي الدفع الشهري:</b> { $amount } ريال
 subscribe-total-receive = <b>إجمالي الاستلام:</b> { $amount } ريال
 
-subscribe-month-detail = 📅 <b>الشهر:</b> { $monthName }
+subscribe-month-detail = 🗓️ <b>الشهر:</b> { $monthName }
 subscribe-stocks-detail = 🔢 <b>الأسهم:</b> { $stockCount }
 subscribe-pay-monthly = 💸 <b>الدفع الشهري:</b> { $amount } ريال
 subscribe-receive-monthly = 💰 <b>الاستلام الشهري:</b> { $amount } ريال
 subscribe-adjust-stocks = <i>اضبط الأسهم وأضفها إلى سلة التسوق.</i>
 subscribe-select-month = اختر شهراً لإضافته إلى اشتراكك.
 
-subscribe-month-label = { $monthName } ({ $remaining })
-subscribe-month-in-cart = { $monthName } (في السلة: { $stockCount })
+subscribe-month-label = { $monthName } · { $remaining }
+subscribe-month-in-cart = { $monthName } · { $stockCount }
 subscribe-no-months-available = ⚠️ لا توجد أشهر متاحة.
 
-subscribe-checkout = ✅ الدفع / التأكيد
-subscribe-clear-cart = 🗑 مسح السلة
-subscribe-cancel = ❌ إلغاء
-subscribe-back = 🔙 رجوع
-subscribe-add-to-cart = 📥 إضافة إلى السلة
+subscribe-checkout = ✅ تأكيد
+subscribe-clear-cart = 🧹 مسح
+subscribe-cancel = ✖️ إلغاء
+subscribe-back = ◀️ رجوع
+subscribe-add-to-cart = ➕ حفظ
 
 subscribe-cancelled = تم إلغاء الاشتراك.
 subscribe-success-title = ✅ <b>تم الاشتراك بنجاح!</b>
@@ -108,7 +111,7 @@ admin-back = 🔙 رجوع
 admin-back-to-users = 🔙 رجوع إلى المستخدمين
 admin-back-to-circles = 🔙 رجوع إلى الدوائر
 
-admin-user-label = 👤 { $userName } ({ $stockCount } أسهم، { $turnCount } أدوار)
+admin-user-label = 👤 { $userName } • 🎟️ { $stockCount } • 🔁 { $turnCount }
 admin-too-many-users = عدد كبير جداً من المستخدمين للعرض. عرض أول 20.
 admin-more-users = ... و { $count } مستخدمين آخرين
 
@@ -124,15 +127,24 @@ admin-no = لا
 admin-summary-title = 📊 الملخص:
 admin-total-stocks = • إجمالي الأسهم: { $count }
 admin-total-payout = • إجمالي الدفع: { $amount } ريال
-admin-next-turn = • الدور التالي: { $monthName } (خلال { $monthsUntil } شهر/أشهر)
+admin-next-turn = • الدور التالي: { $monthName } ⏳ خلال { $monthsUntil } { $monthsUntil ->
+  [1] شهر
+  *[other] أشهر
+}
 admin-circles-count = • الدوائر: { $count }
 
 admin-circles-turns = 🔄 الدوائر والأدوار:
 admin-circle-name = 📌 { $circleName }
 admin-circle-stocks-payout =    الأسهم: { $stockCount }، الدفع: { $payout } ريال
 admin-turns =    الأدوار:
-admin-turn-paid =    ✅ { $monthName }: { $stockCount } سهم(أسهم)
-admin-turn-unpaid =    ❌ { $monthName }: { $stockCount } سهم(أسهم)
+admin-turn-paid =    ✅ { $monthName } • 🎟️ { $stockCount } { $stockCount ->
+      [1] سهم
+      *[other] أسهم
+    }
+admin-turn-unpaid =    ❌ { $monthName } • 🎟️ { $stockCount } { $stockCount ->
+      [1] سهم
+      *[other] أسهم
+    }
 
 admin-stocks-title = 📊 الأسهم: { $circleName }
 admin-summary-label = 📈 الملخص:
@@ -143,27 +155,36 @@ admin-empty = • الفارغ: { $count }
 admin-fill-rate = • معدل الملء: { $percentage }%
 
 admin-monthly-breakdown = 📅 التفصيل الشهري:
-admin-month-stats = { $monthName }
-admin-month-totals =   الإجمالي: { $total }، المملوء: { $filled }، الفارغ: { $empty }
+admin-month-stats = 🗓️ { $monthName }
+admin-month-totals =   🎯 الإجمالي: { $total } • ✅ المملوء: { $filled } • ⚪ الفارغ: { $empty }
 admin-month-fill =   الملء: { $percentage }%
 admin-month-users =   المستخدمون:
-admin-month-user =     👤 { $userName }: { $stockCount } سهم(أسهم)
+admin-month-user =     👤 { $userName } • 🎟️ { $stockCount } { $stockCount ->
+      [1] سهم
+      *[other] أسهم
+    }
 
 admin-circle-status-locked = 🔒
 admin-circle-status-active = ✅
 
-admin-month-filled-info = { $monthName }: { $filled }/{ $total } مملوء
+admin-month-filled-info = 🧮 { $monthName } • { $filled }/{ $total } مملوء
 
 # MyTurn
 myturn-title = 📅 <b>جدول الدفع الخاص بك</b>
 myturn-monthly-payout = 💰 <b>الدفع الشهري:</b> { $amount } ريال
-myturn-month-item = • <b>{ $monthName }</b>: { $amount } ريال ({ $stockCount } سهم(أسهم)) — { $status }
-myturn-months-until = { $months } { $months ->
+myturn-month-item =
+    🗓️ <b>{ $monthName }</b>
+    💵 { $amount } ريال • 🎟️ { $stockCount } { $stockCount ->
+        [1] سهم
+        *[other] أسهم
+    }
+    📍 { $status }
+myturn-months-until = ⏳ متبقٍ { $months } { $months ->
   [1] شهر
   *[other] أشهر
-} متبقي
-myturn-already-gone = انتهى
-myturn-current = الشهر الحالي
+}
+myturn-already-gone = ✅ تم الصرف
+myturn-current = 📅 هذا الشهر
 myturn-no-turns = ليس لديك أي اشتراكات في الدوائر المقفلة بعد.
 
 # Common
@@ -172,4 +193,3 @@ common-stocks = أسهم
 common-month = شهر
 common-months = أشهر
 common-sar = ريال
-

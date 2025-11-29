@@ -9,7 +9,7 @@ import { circles } from "./db/schema";
 import type { MyContext } from "./lib/context";
 import { setCommandsForUser } from "./lib/commands";
 import { db } from "./lib/db";
-import { getUserTurns } from "./lib/helpers";
+import { getLocalizedMonthName, getUserTurns, wrapForLocale } from "./lib/helpers";
 import { requireAdmin, userMiddleware } from "./lib/users";
 import { adminMainMenu } from "./menus/admin";
 
@@ -53,6 +53,7 @@ bot.command("subscribe", async (ctx) => {
 
 bot.command("myturn", async (ctx) => {
   const result = await getUserTurns(ctx.db, ctx.user.id);
+  const locale = await ctx.i18n.getLocale();
 
   if (result.turns.length === 0) {
     await ctx.reply(ctx.t("myturn-no-turns"));
@@ -88,7 +89,7 @@ bot.command("myturn", async (ctx) => {
       }
 
       message += ctx.t("myturn-month-item", {
-        monthName: turn.monthName,
+        monthName: getLocalizedMonthName(turn.monthName, locale),
         amount: turn.payoutAmount.toFixed(2),
         stockCount: turn.stockCount,
         status: statusText,
@@ -97,7 +98,7 @@ bot.command("myturn", async (ctx) => {
     message += "\n";
   }
 
-  await ctx.reply(message, { parse_mode: "HTML" });
+  await ctx.reply(wrapForLocale(message, locale), { parse_mode: "HTML" });
 });
 
 bot.command("create_circle", async (ctx) => {

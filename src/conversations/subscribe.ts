@@ -4,6 +4,8 @@ import { circleMonths, circles, stocks } from "../db/schema";
 import type { MyContext, MyConversation } from "../lib/context";
 import {
   computeMonthAvailability,
+  getLocalizedMonthName,
+  wrapForLocale,
   type MonthAvailability,
 } from "../lib/helpers";
 
@@ -65,6 +67,7 @@ export async function subscribeConversation(
 
   while (true) {
     // 1. Fetch fresh data
+    const locale = await ctx.i18n.getLocale();
     const months = await ctx.db.query.circleMonths.findMany({
       where: eq(circleMonths.circleId, activeCircle.id),
       with: { stocks: true },
@@ -108,7 +111,8 @@ export async function subscribeConversation(
       text += ctx.t("subscribe-cart-title") + "\n";
       let cartTotalStocks = 0;
       state.cart.forEach((item, idx) => {
-        text += ctx.t("subscribe-cart-item", { index: idx + 1, monthName: item.monthName, stockCount: item.stockCount }) + "\n";
+        const localizedMonth = getLocalizedMonthName(item.monthName, locale);
+        text += ctx.t("subscribe-cart-item", { index: idx + 1, monthName: localizedMonth, stockCount: item.stockCount }) + "\n";
         cartTotalStocks += item.stockCount;
       });
 
@@ -124,7 +128,8 @@ export async function subscribeConversation(
       const payMonthly = state.stockCount * activeCircle.monthlyAmount;
       const receiveMonthly = state.stockCount * activeCircle.monthlyAmount * numberOfMonths;
 
-      text += ctx.t("subscribe-month-detail", { monthName: selectedMonth.name }) + "\n";
+      const localizedMonth = getLocalizedMonthName(selectedMonth.name, locale);
+      text += ctx.t("subscribe-month-detail", { monthName: localizedMonth }) + "\n";
       text += ctx.t("subscribe-stocks-detail", { stockCount: state.stockCount }) + "\n";
       text += ctx.t("subscribe-pay-monthly", { amount: payMonthly.toFixed(2) }) + "\n";
       text += ctx.t("subscribe-receive-monthly", { amount: receiveMonthly.toFixed(2) }) + "\n";
@@ -141,9 +146,10 @@ export async function subscribeConversation(
       selectableMonths.forEach((month, idx) => {
         // Check if already in cart
         const inCart = state.cart.find(c => c.monthId === month.id);
+        const localizedMonth = getLocalizedMonthName(month.name, locale);
         const label = inCart
-          ? ctx.t("subscribe-month-in-cart", { monthName: month.name, stockCount: inCart.stockCount })
-          : ctx.t("subscribe-month-label", { monthName: month.name, remaining: month.remainingStocks });
+          ? ctx.t("subscribe-month-in-cart", { monthName: localizedMonth, stockCount: inCart.stockCount })
+          : ctx.t("subscribe-month-label", { monthName: localizedMonth, remaining: month.remainingStocks });
 
         keyboard.text(label, `select_month:${month.id}`);
         if (idx % 2 === 1) keyboard.row();
@@ -178,9 +184,11 @@ export async function subscribeConversation(
     }
 
     // 4. Send or Edit Message
+    const localizedText = wrapForLocale(text, locale);
+
     if (messageId) {
       try {
-        await ctx.api.editMessageText(ctx.chat!.id, messageId, text, {
+        await ctx.api.editMessageText(ctx.chat!.id, messageId, localizedText, {
           parse_mode: "HTML",
           reply_markup: keyboard,
         });
@@ -188,7 +196,7 @@ export async function subscribeConversation(
         // Ignore "message is not modified" errors
       }
     } else {
-      const msg = await ctx.reply(text, {
+      const msg = await ctx.reply(localizedText, {
         parse_mode: "HTML",
         reply_markup: keyboard,
       });
@@ -271,7 +279,8 @@ export async function subscribeConversation(
       for (const item of state.cart) {
         const monthData = latestMonths.find(m => m.id === item.monthId);
         if (!monthData) {
-          await ctx.reply(ctx.t("errors-month-not-found", { monthName: item.monthName }));
+          const localizedName = getLocalizedMonthName(item.monthName, locale);
+          await ctx.reply(wrapForLocale(ctx.t("errors-month-not-found", { monthName: localizedName }), locale));
           allValid = false;
           break;
         }
@@ -288,7 +297,8 @@ export async function subscribeConversation(
         const availableForUser = trueRemaining + myExistingStocks;
 
         if (availableForUser < item.stockCount) {
-          await ctx.reply(ctx.t("errors-not-enough-stocks", { monthName: item.monthName, stockCount: item.stockCount, available: availableForUser }));
+          const localizedName = getLocalizedMonthName(item.monthName, locale);
+          await ctx.reply(wrapForLocale(ctx.t("errors-not-enough-stocks", { monthName: localizedName, stockCount: item.stockCount, available: availableForUser }), locale));
           allValid = false;
           break;
         }
@@ -332,7 +342,8 @@ export async function subscribeConversation(
       state.cart.forEach(item => {
         const pay = item.stockCount * activeCircle.monthlyAmount;
         const receive = item.stockCount * activeCircle.monthlyAmount * numberOfMonths;
-        summaryText += ctx.t("subscribe-success-item", { monthName: item.monthName, stockCount: item.stockCount }) + "\n";
+        const localizedMonth = getLocalizedMonthName(item.monthName, locale);
+        summaryText += ctx.t("subscribe-success-item", { monthName: localizedMonth, stockCount: item.stockCount }) + "\n";
         totalPay += pay;
         totalReceive += receive;
       });
@@ -340,7 +351,8 @@ export async function subscribeConversation(
       summaryText += "\n" + ctx.t("subscribe-total-pay-monthly", { amount: totalPay.toFixed(2) });
       summaryText += "\n" + ctx.t("subscribe-total-receive", { amount: totalReceive.toFixed(2) });
 
-      await ctx.reply(summaryText, { parse_mode: "HTML" });
+      const locale = await ctx.i18n.getLocale();
+      await ctx.reply(wrapForLocale(summaryText, locale), { parse_mode: "HTML" });
       return;
     }
   }
