@@ -1,5 +1,5 @@
 import { InlineKeyboard } from "grammy";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { circleMonths, circles, stocks } from "../db/schema";
 import type { MyContext, MyConversation } from "../lib/context";
 import {
@@ -44,6 +44,23 @@ export async function subscribeConversation(
     cart: [],
   };
 
+  // Pre-load existing stocks
+  const existingStocks = await ctx.db.query.stocks.findMany({
+    where: and(
+      eq(stocks.circleId, activeCircle.id),
+      eq(stocks.userId, user.id)
+    ),
+    with: { circleMonth: true },
+  });
+
+  if (existingStocks.length > 0) {
+    state.cart = existingStocks.map((s) => ({
+      monthId: s.monthId,
+      monthName: s.circleMonth.name,
+      stockCount: s.stockCount,
+    }));
+  }
+
   let messageId: number | undefined;
 
   while (true) {
@@ -54,13 +71,21 @@ export async function subscribeConversation(
     });
 
     const availability = computeMonthAvailability(months);
-    // Filter out months that are fully booked OR already in the cart (unless we want to allow editing cart items, but simpler to just exclude for now)
-    // Actually, let's allow selecting them but maybe show they are in cart? 
-    // For simplicity: Filter out months that have 0 remaining stocks.
-    // We should also subtract cart items from availability to show true remaining stocks during this session?
-    // Let's keep it simple: just check availability against DB.
+    
+    // Adjust availability to include the user's current stocks (since they can re-use them)
+    const adjustedAvailability = availability.map(m => {
+      const monthData = months.find(x => x.id === m.id);
+      const myStocks = monthData?.stocks
+        .filter(s => s.userId === user.id)
+        .reduce((sum, s) => sum + s.stockCount, 0) || 0;
+      
+      return {
+        ...m,
+        remainingStocks: m.remainingStocks + myStocks
+      };
+    });
 
-    const selectableMonths = availability.filter((m) => m.remainingStocks > 0);
+    const selectableMonths = adjustedAvailability.filter((m) => m.remainingStocks > 0);
 
     // If a month is selected, ensure it's still valid
     let selectedMonth: MonthAvailability | undefined;
@@ -244,9 +269,26 @@ export async function subscribeConversation(
       const latestAvailability = computeMonthAvailability(latestMonths);
 
       for (const item of state.cart) {
-        const monthAvail = latestAvailability.find(m => m.id === item.monthId);
-        if (!monthAvail || monthAvail.remainingStocks < item.stockCount) {
-          await ctx.reply(`Issue with ${item.monthName}: Not enough stocks. Please adjust.`);
+        const monthData = latestMonths.find(m => m.id === item.monthId);
+        if (!monthData) {
+             await ctx.reply(`Issue with ${item.monthName}: Month not found.`);
+             allValid = false;
+             break;
+        }
+
+        // Calculate availability manually to account for user's existing stocks
+        const totalStocks = monthData.totalStocks;
+        const takenStocks = monthData.stocks.reduce((sum, s) => sum + s.stockCount, 0);
+        const myExistingStocks = monthData.stocks
+            .filter(s => s.userId === user.id)
+            .reduce((sum, s) => sum + s.stockCount, 0);
+        
+        const trueRemaining = totalStocks - takenStocks;
+        // The stocks available to THIS user is the general remaining + what they currently hold (since they are replacing it)
+        const availableForUser = trueRemaining + myExistingStocks;
+
+        if (availableForUser < item.stockCount) {
+          await ctx.reply(`Issue with ${item.monthName}: Not enough stocks. You requested ${item.stockCount}, but only ${availableForUser} are available.`);
           allValid = false;
           break;
         }
@@ -257,16 +299,26 @@ export async function subscribeConversation(
         continue;
       }
 
-      // Save to DB
-      for (const item of state.cart) {
-        await ctx.db.insert(stocks as any).values({
-          circleId: activeCircle.id,
-          userId: user.id,
-          monthId: item.monthId,
-          stockCount: item.stockCount,
-          status: "confirmed",
-        });
-      }
+      // Save to DB (Transaction: Delete old -> Insert new)
+      await ctx.db.transaction(async (tx) => {
+        // 1. Delete existing stocks for this user in this circle
+        await tx.delete(stocks)
+          .where(and(
+            eq(stocks.circleId, activeCircle.id),
+            eq(stocks.userId, user.id)
+          ));
+
+        // 2. Insert new stocks
+        for (const item of state.cart) {
+          await tx.insert(stocks as any).values({
+            circleId: activeCircle.id,
+            userId: user.id,
+            monthId: item.monthId,
+            stockCount: item.stockCount,
+            status: "confirmed",
+          });
+        }
+      });
 
       await ctx.api.deleteMessage(ctx.chat!.id, messageId!);
 
