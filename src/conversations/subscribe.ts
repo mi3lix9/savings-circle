@@ -24,7 +24,7 @@ export async function subscribeConversation(
   ctx: MyContext,
 ) {
   if (!ctx.from) {
-    await ctx.reply("I need your Telegram profile to get started.");
+    await ctx.reply(ctx.t("errors-missing-telegram-profile"));
     return;
   }
 
@@ -34,7 +34,7 @@ export async function subscribeConversation(
   });
 
   if (!activeCircle) {
-    await ctx.reply("There is no active savings circle right now. Please try again later.");
+    await ctx.reply(ctx.t("errors-no-active-circle"));
     return;
   }
 
@@ -71,14 +71,14 @@ export async function subscribeConversation(
     });
 
     const availability = computeMonthAvailability(months);
-    
+
     // Adjust availability to include the user's current stocks (since they can re-use them)
     const adjustedAvailability = availability.map(m => {
       const monthData = months.find(x => x.id === m.id);
       const myStocks = monthData?.stocks
         .filter(s => s.userId === user.id)
         .reduce((sum, s) => sum + s.stockCount, 0) || 0;
-      
+
       return {
         ...m,
         remainingStocks: m.remainingStocks + myStocks
@@ -100,23 +100,23 @@ export async function subscribeConversation(
     // 2. Build Message Text
     const numberOfMonths = months.length;
 
-    let text = `<b>${activeCircle.name}</b>\n`;
-    text += `Stock Cost: ${activeCircle.monthlyAmount} SAR\n\n`;
+    let text = ctx.t("subscribe-circle-name", { circleName: activeCircle.name }) + "\n";
+    text += ctx.t("subscribe-stock-cost", { amount: activeCircle.monthlyAmount }) + "\n\n";
 
     // Show Cart Summary if items exist
     if (state.cart.length > 0 && !selectedMonth) {
-      text += `🛒 <b>Your Selections:</b>\n`;
+      text += ctx.t("subscribe-cart-title") + "\n";
       let cartTotalStocks = 0;
       state.cart.forEach((item, idx) => {
-        text += `${idx + 1}. ${item.monthName}: ${item.stockCount} stock(s)\n`;
+        text += ctx.t("subscribe-cart-item", { index: idx + 1, monthName: item.monthName, stockCount: item.stockCount }) + "\n";
         cartTotalStocks += item.stockCount;
       });
 
       const cartPayMonthly = cartTotalStocks * activeCircle.monthlyAmount;
       const cartReceiveMonthly = cartTotalStocks * activeCircle.monthlyAmount * numberOfMonths;
 
-      text += `\n<b>Total Pay Monthly:</b> ${cartPayMonthly.toFixed(2)} SAR`;
-      text += `\n<b>Total Receive:</b> ${cartReceiveMonthly.toFixed(2)} SAR\n\n`;
+      text += "\n" + ctx.t("subscribe-total-pay-monthly", { amount: cartPayMonthly.toFixed(2) });
+      text += "\n" + ctx.t("subscribe-total-receive", { amount: cartReceiveMonthly.toFixed(2) }) + "\n\n";
     }
 
     if (selectedMonth) {
@@ -124,13 +124,13 @@ export async function subscribeConversation(
       const payMonthly = state.stockCount * activeCircle.monthlyAmount;
       const receiveMonthly = state.stockCount * activeCircle.monthlyAmount * numberOfMonths;
 
-      text += `📅 <b>Month:</b> ${selectedMonth.name}\n`;
-      text += `🔢 <b>Stocks:</b> ${state.stockCount}\n`;
-      text += `💸 <b>Pay Monthly:</b> ${payMonthly.toFixed(2)} SAR\n`;
-      text += `💰 <b>Receive Monthly:</b> ${receiveMonthly.toFixed(2)} SAR\n`;
-      text += `\n<i>Adjust stocks and add to your cart.</i>`;
+      text += ctx.t("subscribe-month-detail", { monthName: selectedMonth.name }) + "\n";
+      text += ctx.t("subscribe-stocks-detail", { stockCount: state.stockCount }) + "\n";
+      text += ctx.t("subscribe-pay-monthly", { amount: payMonthly.toFixed(2) }) + "\n";
+      text += ctx.t("subscribe-receive-monthly", { amount: receiveMonthly.toFixed(2) }) + "\n";
+      text += "\n" + ctx.t("subscribe-adjust-stocks");
     } else {
-      text += `Select a month to add to your subscription.`;
+      text += ctx.t("subscribe-select-month");
     }
 
     // 3. Build Keyboard
@@ -142,26 +142,26 @@ export async function subscribeConversation(
         // Check if already in cart
         const inCart = state.cart.find(c => c.monthId === month.id);
         const label = inCart
-          ? `${month.name} (In Cart: ${inCart.stockCount})`
-          : `${month.name} (${month.remainingStocks})`;
+          ? ctx.t("subscribe-month-in-cart", { monthName: month.name, stockCount: inCart.stockCount })
+          : ctx.t("subscribe-month-label", { monthName: month.name, remaining: month.remainingStocks });
 
         keyboard.text(label, `select_month:${month.id}`);
         if (idx % 2 === 1) keyboard.row();
       });
 
       if (selectableMonths.length === 0) {
-        text += "\n\n⚠️ No months available.";
+        text += "\n\n" + ctx.t("subscribe-no-months-available");
       }
 
       keyboard.row();
 
       if (state.cart.length > 0) {
-        keyboard.text("✅ Checkout / Confirm", "checkout");
-        keyboard.text("🗑 Clear Cart", "clear_cart");
+        keyboard.text(ctx.t("subscribe-checkout"), "checkout");
+        keyboard.text(ctx.t("subscribe-clear-cart"), "clear_cart");
         keyboard.row();
       }
 
-      keyboard.text("❌ Cancel", "cancel");
+      keyboard.text(ctx.t("subscribe-cancel"), "cancel");
     } else {
       // Detail/Edit Mode
       const maxStocks = selectedMonth.remainingStocks;
@@ -171,10 +171,10 @@ export async function subscribeConversation(
       keyboard.text("➕", "stock:inc");
       keyboard.row();
 
-      keyboard.text("📥 Add to Cart", "add_to_cart");
+      keyboard.text(ctx.t("subscribe-add-to-cart"), "add_to_cart");
       keyboard.row();
 
-      keyboard.text("🔙 Back", "back_to_months");
+      keyboard.text(ctx.t("subscribe-back"), "back_to_months");
     }
 
     // 4. Send or Edit Message
@@ -203,7 +203,7 @@ export async function subscribeConversation(
     // 6. Handle Actions
     if (data === "cancel") {
       await ctx.api.deleteMessage(ctx.chat!.id, messageId!);
-      await ctx.reply("Subscription cancelled.");
+      await ctx.reply(ctx.t("subscribe-cancelled"));
       return;
     }
 
@@ -242,7 +242,7 @@ export async function subscribeConversation(
       if (currentMonth) {
         // Update or Add to cart
         const existingIdx = state.cart.findIndex(c => c.monthId === currentMonth.id);
-        if (existingIdx >= 0) {
+        if (existingIdx >= 0 && state.cart[existingIdx]) {
           state.cart[existingIdx].stockCount = state.stockCount;
         } else {
           state.cart.push({
@@ -271,24 +271,24 @@ export async function subscribeConversation(
       for (const item of state.cart) {
         const monthData = latestMonths.find(m => m.id === item.monthId);
         if (!monthData) {
-             await ctx.reply(`Issue with ${item.monthName}: Month not found.`);
-             allValid = false;
-             break;
+          await ctx.reply(ctx.t("errors-month-not-found", { monthName: item.monthName }));
+          allValid = false;
+          break;
         }
 
         // Calculate availability manually to account for user's existing stocks
         const totalStocks = monthData.totalStocks;
         const takenStocks = monthData.stocks.reduce((sum, s) => sum + s.stockCount, 0);
         const myExistingStocks = monthData.stocks
-            .filter(s => s.userId === user.id)
-            .reduce((sum, s) => sum + s.stockCount, 0);
-        
+          .filter(s => s.userId === user.id)
+          .reduce((sum, s) => sum + s.stockCount, 0);
+
         const trueRemaining = totalStocks - takenStocks;
         // The stocks available to THIS user is the general remaining + what they currently hold (since they are replacing it)
         const availableForUser = trueRemaining + myExistingStocks;
 
         if (availableForUser < item.stockCount) {
-          await ctx.reply(`Issue with ${item.monthName}: Not enough stocks. You requested ${item.stockCount}, but only ${availableForUser} are available.`);
+          await ctx.reply(ctx.t("errors-not-enough-stocks", { monthName: item.monthName, stockCount: item.stockCount, available: availableForUser }));
           allValid = false;
           break;
         }
@@ -325,20 +325,20 @@ export async function subscribeConversation(
       // Get number of months for the calculation
       const numberOfMonths = latestMonths.length;
 
-      let summaryText = `✅ <b>Subscribed Successfully!</b>\n\n`;
+      let summaryText = ctx.t("subscribe-success-title") + "\n\n";
       let totalPay = 0;
       let totalReceive = 0;
 
       state.cart.forEach(item => {
         const pay = item.stockCount * activeCircle.monthlyAmount;
         const receive = item.stockCount * activeCircle.monthlyAmount * numberOfMonths;
-        summaryText += `• <b>${item.monthName}</b>: ${item.stockCount} stocks\n`;
+        summaryText += ctx.t("subscribe-success-item", { monthName: item.monthName, stockCount: item.stockCount }) + "\n";
         totalPay += pay;
         totalReceive += receive;
       });
 
-      summaryText += `\n<b>Total Pay Monthly:</b> ${totalPay.toFixed(2)} SAR`;
-      summaryText += `\n<b>Total Receive:</b> ${totalReceive.toFixed(2)} SAR`;
+      summaryText += "\n" + ctx.t("subscribe-total-pay-monthly", { amount: totalPay.toFixed(2) });
+      summaryText += "\n" + ctx.t("subscribe-total-receive", { amount: totalReceive.toFixed(2) });
 
       await ctx.reply(summaryText, { parse_mode: "HTML" });
       return;

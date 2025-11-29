@@ -1,35 +1,35 @@
-import type { Api } from "grammy";
-
-// User commands (available to all users)
-export const userCommands = [
-  { command: "start", description: "Begin registration and see welcome message" },
-  { command: "subscribe", description: "Pick months and stocks for the current circle" },
-];
-
-// Admin commands (includes all user commands plus admin-specific ones)
-export const adminCommands = [
-  { command: "start", description: "Begin registration and see welcome message" },
-  { command: "subscribe", description: "Pick months and stocks for the current circle" },
-  { command: "create_circle", description: "Create a new savings circle" },
-  { command: "start_circle", description: "Lock the current circle to start subscriptions" },
-  { command: "admin", description: "Open admin panel" },
-];
+import type { MyContext } from "./context";
 
 /**
  * Set bot commands for a specific user based on their admin status
- * @param api - The bot API instance (from bot.api or ctx.api)
+ * @param ctx - The context object with i18n support
  * @param userId - The Telegram user ID
  * @param isAdmin - Whether the user is an admin
  */
 export async function setCommandsForUser(
-  api: Api,
+  ctx: MyContext,
   userId: number,
   isAdmin: boolean,
 ): Promise<void> {
   try {
+    // User commands (available to all users)
+    const userCommands = [
+      { command: "start", description: ctx.t("commands-start") },
+      { command: "subscribe", description: ctx.t("commands-subscribe") },
+    ];
+
+    // Admin commands (includes all user commands plus admin-specific ones)
+    const adminCommands = [
+      { command: "start", description: ctx.t("commands-start") },
+      { command: "subscribe", description: ctx.t("commands-subscribe") },
+      { command: "create_circle", description: ctx.t("commands-create-circle") },
+      { command: "start_circle", description: ctx.t("commands-start-circle") },
+      { command: "admin", description: ctx.t("commands-admin") },
+    ];
+
     const commands = isAdmin ? adminCommands : userCommands;
 
-    await api.setMyCommands(commands, {
+    await ctx.api.setMyCommands(commands, {
       scope: {
         type: "chat",
         chat_id: userId,

@@ -7,7 +7,7 @@ export async function onboarding(conversation: MyConversation, ctx: MyContext) {
   // Step 1: Get Telegram Info
   const user = ctx.from;
   if (!user) {
-    await ctx.reply("I couldn't get your user information.");
+    await ctx.reply(ctx.t("errors-missing-user-info"));
     return;
   }
 
@@ -17,12 +17,12 @@ export async function onboarding(conversation: MyConversation, ctx: MyContext) {
 
   // Step 2: Request Contact
   const contactKeyboard = new Keyboard()
-    .requestContact("📱 Share My Phone Number")
+    .requestContact(ctx.t("onboarding-share-phone"))
     .resized()
     .oneTime();
 
   await ctx.reply(
-    "Welcome! To get started, I need your contact information. Please tap the button below to share your phone number.",
+    ctx.t("onboarding-welcome"),
     { reply_markup: contactKeyboard }
   );
 
@@ -31,11 +31,11 @@ export async function onboarding(conversation: MyConversation, ctx: MyContext) {
 
   // Step 3: Confirm Name
   const nameKeyboard = new InlineKeyboard()
-    .text("Yes, that's correct", "name_correct")
-    .text("No, edit name", "name_edit");
+    .text(ctx.t("onboarding-name-correct"), "name_correct")
+    .text(ctx.t("onboarding-name-edit"), "name_edit");
 
   await ctx.reply(
-    `I have your name as <b>${firstName} ${lastName}</b>. Is this correct?`,
+    ctx.t("onboarding-name-confirmation", { firstName, lastName }),
     { parse_mode: "HTML", reply_markup: nameKeyboard }
   );
 
@@ -43,7 +43,7 @@ export async function onboarding(conversation: MyConversation, ctx: MyContext) {
   await nameCtx.answerCallbackQuery();
 
   if (nameCtx.callbackQuery?.data === "name_edit") {
-    await ctx.reply("Please enter your full name (e.g. John Doe):", {
+    await ctx.reply(ctx.t("onboarding-enter-full-name"), {
       reply_markup: { remove_keyboard: true },
     });
 
@@ -90,7 +90,7 @@ export async function onboarding(conversation: MyConversation, ctx: MyContext) {
     }
   });
 
-  await ctx.reply(`Thank you, ${firstName}! Your information has been saved.`, {
+  await ctx.reply(ctx.t("onboarding-thank-you", { firstName }), {
     reply_markup: { remove_keyboard: true },
   });
 }

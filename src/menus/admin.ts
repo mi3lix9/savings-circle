@@ -16,17 +16,17 @@ function formatUserName(user: { firstName: string | null; lastName: string | nul
 
 // Main admin menu
 export const adminMainMenu = new Menu<MyContext>("admin-main")
-  .text("👥 View All Users", async (ctx) => {
+  .text((ctx) => ctx.t("admin-view-users"), async (ctx) => {
     await ctx.answerCallbackQuery();
     ctx.menu.nav("admin-users");
   })
   .row()
-  .text("📊 View Stocks", async (ctx) => {
+  .text((ctx) => ctx.t("admin-view-stocks"), async (ctx) => {
     await ctx.answerCallbackQuery();
     await ctx.menu.nav("admin-circles");
   })
   .row()
-  .text("📈 Statistics", async (ctx) => {
+  .text((ctx) => ctx.t("admin-statistics"), async (ctx) => {
     await ctx.answerCallbackQuery();
     const users = await getAllUsersWithStats(ctx.db);
     const allCircles = await ctx.db.query.circles.findMany();
@@ -37,12 +37,12 @@ export const adminMainMenu = new Menu<MyContext>("admin-main")
     const activeCircles = allCircles.filter((c) => !c.isLocked).length;
 
     await ctx.reply(
-      `📈 Admin Statistics\n\n` +
-      `👥 Total Users: ${totalUsers}\n` +
-      `📊 Total Stocks: ${totalStocks}\n` +
-      `🔄 Total Circles: ${totalCircles}\n` +
-      `✅ Active Circles: ${activeCircles}\n` +
-      `🔒 Locked Circles: ${totalCircles - activeCircles}`,
+      ctx.t("admin-stats-title") + "\n\n" +
+      ctx.t("admin-total-users", { count: totalUsers }) + "\n" +
+      ctx.t("admin-total-stocks", { count: totalStocks }) + "\n" +
+      ctx.t("admin-total-circles", { count: totalCircles }) + "\n" +
+      ctx.t("admin-active-circles", { count: activeCircles }) + "\n" +
+      ctx.t("admin-locked-circles", { count: totalCircles - activeCircles }),
       { reply_markup: adminMainMenu },
     );
   });
@@ -51,7 +51,7 @@ export const adminMainMenu = new Menu<MyContext>("admin-main")
 export const adminUsersMenu = new Menu<MyContext>("admin-users")
   .dynamic(async (ctx, range) => {
     const users = await getAllUsersWithStats(ctx.db);
-    range.text("🔙 Back", (ctx) => {
+    range.text((ctx) => ctx.t("admin-back"), (ctx) => {
       ctx.menu.nav("admin-main");
     });
 
@@ -65,33 +65,34 @@ export const adminUsersMenu = new Menu<MyContext>("admin-users")
     const usersToShow = users.slice(0, 20);
     for (const user of usersToShow) {
       const userName = formatUserName(user);
-      const label = `👤 ${userName} (${user.totalStocks} stocks, ${user.totalTurns} turns)`;
-      range.text(label, async (ctx) => {
+      range.text((ctx) => ctx.t("admin-user-label", { userName, stockCount: user.totalStocks, turnCount: user.totalTurns }), async (ctx) => {
         await ctx.answerCallbackQuery();
         const userDetails = await getUserDetails(ctx.db, user.id);
         if (userDetails) {
           const { user: u, circles: userCircles, totalStocks, totalPayout, nextTurn } = userDetails;
-          let message = `👤 User Details\n\n`;
-          message += `🆔 Telegram ID: ${u.telegramId}\n`;
-          message += `📱 Phone: ${u.phone || "Not provided"}\n`;
-          message += `📅 Registered: ${new Date(u.createdAt).toLocaleDateString()}\n`;
-          message += `👑 Admin: ${u.isAdmin ? "Yes" : "No"}\n\n`;
-          message += `📊 Summary:\n`;
-          message += `• Total Stocks: ${totalStocks}\n`;
-          message += `• Total Payout: ${totalPayout.toFixed(2)} SAR\n`;
+          let message = ctx.t("admin-user-details-title") + "\n\n";
+          message += ctx.t("admin-telegram-id", { id: u.telegramId }) + "\n";
+          message += ctx.t("admin-phone", { phone: u.phone || ctx.t("admin-not-provided") }) + "\n";
+          message += ctx.t("admin-registered", { date: new Date(u.createdAt).toLocaleDateString() }) + "\n";
+          message += ctx.t("admin-is-admin", { status: u.isAdmin ? ctx.t("admin-yes") : ctx.t("admin-no") }) + "\n\n";
+          message += ctx.t("admin-summary-title") + "\n";
+          message += ctx.t("admin-total-stocks", { count: totalStocks }) + "\n";
+          message += ctx.t("admin-total-payout", { amount: totalPayout.toFixed(2) }) + "\n";
           if (nextTurn) {
-            message += `• Next Turn: ${nextTurn.month.name} (in ${nextTurn.monthsUntil} months)\n`;
+            message += ctx.t("admin-next-turn", { monthName: nextTurn.month.name, monthsUntil: nextTurn.monthsUntil }) + "\n";
           }
-          message += `• Circles: ${userCircles.length}\n\n`;
+          message += ctx.t("admin-circles-count", { count: userCircles.length }) + "\n\n";
           if (userCircles.length > 0) {
-            message += `🔄 Circles & Turns:\n`;
+            message += ctx.t("admin-circles-turns") + "\n";
             for (const circleData of userCircles) {
-              message += `\n📌 ${circleData.circle.name}\n`;
-              message += `   Stocks: ${circleData.totalStocks}, Payout: ${circleData.totalPayout.toFixed(2)} SAR\n`;
-              message += `   Turns:\n`;
+              message += "\n" + ctx.t("admin-circle-name", { circleName: circleData.circle.name }) + "\n";
+              message += ctx.t("admin-circle-stocks-payout", { stockCount: circleData.totalStocks, payout: circleData.totalPayout.toFixed(2) }) + "\n";
+              message += ctx.t("admin-turns") + "\n";
               for (const stockData of circleData.stocks) {
-                const paid = stockData.payment?.paid ? "✅" : "❌";
-                message += `   ${paid} ${stockData.month.name}: ${stockData.stock.stockCount} stock(s)\n`;
+                const paid = stockData.payment?.paid;
+                message += paid
+                  ? ctx.t("admin-turn-paid", { monthName: stockData.month.name, stockCount: stockData.stock.stockCount }) + "\n"
+                  : ctx.t("admin-turn-unpaid", { monthName: stockData.month.name, stockCount: stockData.stock.stockCount }) + "\n";
               }
             }
           }
@@ -100,14 +101,14 @@ export const adminUsersMenu = new Menu<MyContext>("admin-users")
           }
           await ctx.editMessageText(message);
         }
-        await ctx.menu.nav("admin-user", String(user.id));
+        (ctx.menu.nav as any)("admin-user", String(user.id));
       });
       range.row();
     }
 
     if (users.length > 20) {
-      range.text(`... and ${users.length - 20} more users`, (ctx) => {
-        ctx.answerCallbackQuery({ text: "Too many users to display. Showing first 20." });
+      range.text((ctx) => ctx.t("admin-more-users", { count: users.length - 20 }), (ctx) => {
+        ctx.answerCallbackQuery({ text: ctx.t("admin-too-many-users") });
       });
       range.row();
     }
@@ -115,7 +116,7 @@ export const adminUsersMenu = new Menu<MyContext>("admin-users")
     return range;
   })
   .row()
-  .text("🔙 Back", (ctx) => {
+  .text((ctx) => ctx.t("admin-back"), (ctx) => {
     ctx.menu.nav("admin-main");
   });
 
@@ -125,13 +126,13 @@ export const adminUserMenu = new Menu<MyContext>("admin-user")
     const payload = ctx.match as string | undefined;
     const userId = payload ? Number(payload) : undefined;
     if (!userId || isNaN(userId)) {
-      range.text("❌ Invalid user", (ctx) => ctx.answerCallbackQuery());
+      range.text((ctx) => ctx.t("errors-invalid-user"), (ctx) => ctx.answerCallbackQuery());
       return range;
     }
 
     const userDetails = await getUserDetails(ctx.db, userId);
     if (!userDetails) {
-      range.text("❌ User not found", (ctx) => ctx.answerCallbackQuery());
+      range.text((ctx) => ctx.t("errors-user-not-found"), (ctx) => ctx.answerCallbackQuery());
       return range;
     }
 
@@ -139,28 +140,28 @@ export const adminUserMenu = new Menu<MyContext>("admin-user")
 
     // Add buttons for each circle
     for (const circleData of userCircles) {
-      range.text(`📌 ${circleData.circle.name}`, async (ctx) => {
+      range.text((ctx) => ctx.t("admin-circle-name", { circleName: circleData.circle.name }), async (ctx) => {
         await ctx.answerCallbackQuery();
         const circleStocks = await getCircleStocks(ctx.db, circleData.circle.id);
         if (circleStocks) {
           const { circle: c, months, summary } = circleStocks;
-          let message = `📊 Stocks: ${c.name}\n\n`;
-          message += `📈 Summary:\n`;
-          message += `• Total Months: ${summary.totalMonths}\n`;
-          message += `• Total Stocks: ${summary.totalStocks}\n`;
-          message += `• Filled: ${summary.filledStocks}\n`;
-          message += `• Empty: ${summary.emptyStocks}\n`;
-          message += `• Fill Rate: ${summary.overallFillPercentage.toFixed(1)}%\n\n`;
-          message += `📅 Monthly Breakdown:\n`;
+          let message = ctx.t("admin-stocks-title", { circleName: c.name }) + "\n\n";
+          message += ctx.t("admin-summary-label") + "\n";
+          message += ctx.t("admin-total-months", { count: summary.totalMonths }) + "\n";
+          message += ctx.t("admin-total-stocks-summary", { count: summary.totalStocks }) + "\n";
+          message += ctx.t("admin-filled", { count: summary.filledStocks }) + "\n";
+          message += ctx.t("admin-empty", { count: summary.emptyStocks }) + "\n";
+          message += ctx.t("admin-fill-rate", { percentage: summary.overallFillPercentage.toFixed(1) }) + "\n\n";
+          message += ctx.t("admin-monthly-breakdown") + "\n";
           for (const monthData of months) {
-            message += `\n${monthData.month.name}\n`;
-            message += `  Total: ${monthData.totalStocks}, Filled: ${monthData.filledStocks}, Empty: ${monthData.emptyStocks}\n`;
-            message += `  Fill: ${monthData.fillPercentage.toFixed(1)}%\n`;
+            message += "\n" + ctx.t("admin-month-stats", { monthName: monthData.month.name }) + "\n";
+            message += ctx.t("admin-month-totals", { total: monthData.totalStocks, filled: monthData.filledStocks, empty: monthData.emptyStocks }) + "\n";
+            message += ctx.t("admin-month-fill", { percentage: monthData.fillPercentage.toFixed(1) }) + "\n";
             if (monthData.users.length > 0) {
-              message += `  Users:\n`;
+              message += ctx.t("admin-month-users") + "\n";
               for (const userData of monthData.users) {
                 const userName = formatUserName(userData.user);
-                message += `    👤 ${userName}: ${userData.stockCount} stock(s)\n`;
+                message += ctx.t("admin-month-user", { userName, stockCount: userData.stockCount }) + "\n";
               }
             }
           }
@@ -169,12 +170,12 @@ export const adminUserMenu = new Menu<MyContext>("admin-user")
           }
           await ctx.editMessageText(message);
         }
-        await ctx.menu.nav("admin-stocks", String(circleData.circle.id));
+        (ctx.menu.nav as any)("admin-stocks", String(circleData.circle.id));
       });
       range.row();
     }
 
-    range.text("🔙 Back to Users", (ctx) => {
+    range.text((ctx) => ctx.t("admin-back-to-users"), (ctx) => {
       ctx.menu.nav("admin-users");
     });
 
@@ -188,7 +189,7 @@ export const adminCirclesMenu = new Menu<MyContext>("admin-circles")
       orderBy: (circles, { desc }) => [desc(circles.createdAt)],
     });
 
-    range.text("🔙 Back", (ctx) => {
+    range.text((ctx) => ctx.t("admin-back"), (ctx) => {
       ctx.menu.nav("admin-main");
     });
 
@@ -199,30 +200,31 @@ export const adminCirclesMenu = new Menu<MyContext>("admin-circles")
     range.row();
 
     for (const circle of allCircles) {
-      const status = circle.isLocked ? "🔒" : "✅";
-      const label = `${status} ${circle.name}`;
-      range.text(label, async (ctx) => {
+      range.text((ctx) => {
+        const status = circle.isLocked ? ctx.t("admin-circle-status-locked") : ctx.t("admin-circle-status-active");
+        return `${status} ${circle.name}`;
+      }, async (ctx) => {
         await ctx.answerCallbackQuery();
         const circleStocks = await getCircleStocks(ctx.db, circle.id);
         if (circleStocks) {
           const { circle: c, months, summary } = circleStocks;
-          let message = `📊 Stocks: ${c.name}\n\n`;
-          message += `📈 Summary:\n`;
-          message += `• Total Months: ${summary.totalMonths}\n`;
-          message += `• Total Stocks: ${summary.totalStocks}\n`;
-          message += `• Filled: ${summary.filledStocks}\n`;
-          message += `• Empty: ${summary.emptyStocks}\n`;
-          message += `• Fill Rate: ${summary.overallFillPercentage.toFixed(1)}%\n\n`;
-          message += `📅 Monthly Breakdown:\n`;
+          let message = ctx.t("admin-stocks-title", { circleName: c.name }) + "\n\n";
+          message += ctx.t("admin-summary-label") + "\n";
+          message += ctx.t("admin-total-months", { count: summary.totalMonths }) + "\n";
+          message += ctx.t("admin-total-stocks-summary", { count: summary.totalStocks }) + "\n";
+          message += ctx.t("admin-filled", { count: summary.filledStocks }) + "\n";
+          message += ctx.t("admin-empty", { count: summary.emptyStocks }) + "\n";
+          message += ctx.t("admin-fill-rate", { percentage: summary.overallFillPercentage.toFixed(1) }) + "\n\n";
+          message += ctx.t("admin-monthly-breakdown") + "\n";
           for (const monthData of months) {
-            message += `\n${monthData.month.name}\n`;
-            message += `  Total: ${monthData.totalStocks}, Filled: ${monthData.filledStocks}, Empty: ${monthData.emptyStocks}\n`;
-            message += `  Fill: ${monthData.fillPercentage.toFixed(1)}%\n`;
+            message += "\n" + ctx.t("admin-month-stats", { monthName: monthData.month.name }) + "\n";
+            message += ctx.t("admin-month-totals", { total: monthData.totalStocks, filled: monthData.filledStocks, empty: monthData.emptyStocks }) + "\n";
+            message += ctx.t("admin-month-fill", { percentage: monthData.fillPercentage.toFixed(1) }) + "\n";
             if (monthData.users.length > 0) {
-              message += `  Users:\n`;
+              message += ctx.t("admin-month-users") + "\n";
               for (const userData of monthData.users) {
                 const userName = formatUserName(userData.user);
-                message += `    👤 ${userName}: ${userData.stockCount} stock(s)\n`;
+                message += ctx.t("admin-month-user", { userName, stockCount: userData.stockCount }) + "\n";
               }
             }
           }
@@ -231,7 +233,7 @@ export const adminCirclesMenu = new Menu<MyContext>("admin-circles")
           }
           await ctx.editMessageText(message);
         }
-        await ctx.menu.nav("admin-stocks", String(circle.id));
+        (ctx.menu.nav as any)("admin-stocks", String(circle.id));
       });
       range.row();
     }
@@ -239,7 +241,7 @@ export const adminCirclesMenu = new Menu<MyContext>("admin-circles")
     return range;
   })
   .row()
-  .text("🔙 Back", (ctx) => {
+  .text((ctx) => ctx.t("admin-back"), (ctx) => {
     ctx.menu.nav("admin-main");
   });
 
@@ -249,13 +251,13 @@ export const adminStocksMenu = new Menu<MyContext>("admin-stocks")
     const payload = ctx.match as string | undefined;
     const circleId = payload ? Number(payload) : undefined;
     if (!circleId || isNaN(circleId)) {
-      range.text("❌ Invalid circle", (ctx) => ctx.answerCallbackQuery());
+      range.text((ctx) => ctx.t("errors-invalid-circle"), (ctx) => ctx.answerCallbackQuery());
       return range;
     }
 
     const circleStocks = await getCircleStocks(ctx.db, circleId);
     if (!circleStocks) {
-      range.text("❌ Circle not found", (ctx) => ctx.answerCallbackQuery());
+      range.text((ctx) => ctx.t("errors-circle-not-found"), (ctx) => ctx.answerCallbackQuery());
       return range;
     }
 
@@ -264,39 +266,41 @@ export const adminStocksMenu = new Menu<MyContext>("admin-stocks")
     // Add buttons for users in each month
     for (const monthData of months) {
       if (monthData.users.length > 0) {
-        range.text(`📅 ${monthData.month.name}`, (ctx) => {
-          ctx.answerCallbackQuery({ text: `${monthData.month.name}: ${monthData.filledStocks}/${monthData.totalStocks} filled` });
+        range.text((ctx) => ctx.t("admin-month-stats", { monthName: monthData.month.name }), (ctx) => {
+          ctx.answerCallbackQuery({ text: ctx.t("admin-month-filled-info", { monthName: monthData.month.name, filled: monthData.filledStocks, total: monthData.totalStocks }) });
         });
         range.row();
         for (const userData of monthData.users) {
           const userName = formatUserName(userData.user);
-          range.text(`👤 ${userName} (${userData.stockCount})`, async (ctx) => {
+          range.text((ctx) => `👤 ${userName} (${userData.stockCount})`, async (ctx) => {
             await ctx.answerCallbackQuery();
             const userDetails = await getUserDetails(ctx.db, userData.user.id);
             if (userDetails) {
               const { user: u, circles: userCircles, totalStocks, totalPayout, nextTurn } = userDetails;
-              let message = `👤 User Details\n\n`;
-              message += `🆔 Telegram ID: ${u.telegramId}\n`;
-              message += `📱 Phone: ${u.phone || "Not provided"}\n`;
+              let message = ctx.t("admin-user-details-title") + "\n\n";
+              message += ctx.t("admin-telegram-id", { id: u.telegramId }) + "\n";
+              message += ctx.t("admin-phone", { phone: u.phone || ctx.t("admin-not-provided") }) + "\n";
               const regDate = u.createdAt instanceof Date ? u.createdAt : new Date(Number(u.createdAt) * 1000);
-              message += `📅 Registered: ${regDate.toLocaleDateString()}\n`;
-              message += `👑 Admin: ${u.isAdmin ? "Yes" : "No"}\n\n`;
-              message += `📊 Summary:\n`;
-              message += `• Total Stocks: ${totalStocks}\n`;
-              message += `• Total Payout: ${totalPayout.toFixed(2)} SAR\n`;
+              message += ctx.t("admin-registered", { date: regDate.toLocaleDateString() }) + "\n";
+              message += ctx.t("admin-is-admin", { status: u.isAdmin ? ctx.t("admin-yes") : ctx.t("admin-no") }) + "\n\n";
+              message += ctx.t("admin-summary-title") + "\n";
+              message += ctx.t("admin-total-stocks", { count: totalStocks }) + "\n";
+              message += ctx.t("admin-total-payout", { amount: totalPayout.toFixed(2) }) + "\n";
               if (nextTurn) {
-                message += `• Next Turn: ${nextTurn.month.name} (in ${nextTurn.monthsUntil} months)\n`;
+                message += ctx.t("admin-next-turn", { monthName: nextTurn.month.name, monthsUntil: nextTurn.monthsUntil }) + "\n";
               }
-              message += `• Circles: ${userCircles.length}\n\n`;
+              message += ctx.t("admin-circles-count", { count: userCircles.length }) + "\n\n";
               if (userCircles.length > 0) {
-                message += `🔄 Circles & Turns:\n`;
+                message += ctx.t("admin-circles-turns") + "\n";
                 for (const circleData of userCircles) {
-                  message += `\n📌 ${circleData.circle.name}\n`;
-                  message += `   Stocks: ${circleData.totalStocks}, Payout: ${circleData.totalPayout.toFixed(2)} SAR\n`;
-                  message += `   Turns:\n`;
+                  message += "\n" + ctx.t("admin-circle-name", { circleName: circleData.circle.name }) + "\n";
+                  message += ctx.t("admin-circle-stocks-payout", { stockCount: circleData.totalStocks, payout: circleData.totalPayout.toFixed(2) }) + "\n";
+                  message += ctx.t("admin-turns") + "\n";
                   for (const stockData of circleData.stocks) {
-                    const paid = stockData.payment?.paid ? "✅" : "❌";
-                    message += `   ${paid} ${stockData.month.name}: ${stockData.stock.stockCount} stock(s)\n`;
+                    const paid = stockData.payment?.paid;
+                    message += paid
+                      ? ctx.t("admin-turn-paid", { monthName: stockData.month.name, stockCount: stockData.stock.stockCount }) + "\n"
+                      : ctx.t("admin-turn-unpaid", { monthName: stockData.month.name, stockCount: stockData.stock.stockCount }) + "\n";
                   }
                 }
               }
@@ -305,14 +309,14 @@ export const adminStocksMenu = new Menu<MyContext>("admin-stocks")
               }
               await ctx.editMessageText(message);
             }
-            await ctx.menu.nav("admin-user", String(userData.user.id));
+            (ctx.menu.nav as any)("admin-user", String(userData.user.id));
           });
         }
         range.row();
       }
     }
 
-    range.text("🔙 Back to Circles", (ctx) => {
+    range.text((ctx) => ctx.t("admin-back-to-circles"), (ctx) => {
       ctx.menu.nav("admin-circles");
     });
 

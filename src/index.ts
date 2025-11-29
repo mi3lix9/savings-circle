@@ -1,4 +1,5 @@
 import { conversations, createConversation } from "@grammyjs/conversations";
+import { I18n } from "@grammyjs/i18n";
 import { Bot } from "grammy";
 import { eq } from "drizzle-orm";
 import { createCircleConversation } from "./conversations/createCircle";
@@ -13,11 +14,19 @@ import { adminMainMenu } from "./menus/admin";
 
 const bot = new Bot<MyContext>(process.env.BOT_TOKEN!);
 
+// Configure i18n
+const i18n = new I18n<MyContext>({
+  defaultLocale: "ar",
+  directory: "locales",
+  localeNegotiator: (ctx) => ctx.from?.language_code ?? "en",
+});
+
 const dbMiddleware = async (ctx: MyContext, next: () => Promise<void>) => {
   ctx.db = db;
   return next();
 };
 
+bot.use(i18n);
 bot.use(dbMiddleware);
 bot.use(userMiddleware);
 
@@ -25,14 +34,14 @@ bot.use(userMiddleware);
 bot.use(adminMainMenu);
 
 bot.use(conversations());
-bot.use(createConversation(subscribeConversation, { plugins: [dbMiddleware, userMiddleware] }));
-bot.use(createConversation(createCircleConversation, { plugins: [dbMiddleware, userMiddleware] }));
-bot.use(createConversation(onboarding, { plugins: [dbMiddleware, userMiddleware] }));
+bot.use(createConversation(subscribeConversation, { plugins: [dbMiddleware, userMiddleware, i18n] }));
+bot.use(createConversation(createCircleConversation, { plugins: [dbMiddleware, userMiddleware, i18n] }));
+bot.use(createConversation(onboarding, { plugins: [dbMiddleware, userMiddleware, i18n] }));
 
 bot.command("start", async (ctx) => {
   // Set commands for user to ensure they're up to date
   if (ctx.from && ctx.user) {
-    await setCommandsForUser(ctx.api, ctx.from.id, ctx.user.isAdmin);
+    await setCommandsForUser(ctx, ctx.from.id, ctx.user.isAdmin);
   }
   await ctx.conversation.enter("onboarding");
 });
@@ -44,17 +53,17 @@ bot.command("subscribe", async (ctx) => {
 bot.command("create_circle", async (ctx) => {
   const admin = await requireAdmin(ctx);
   if (!admin) {
-    await ctx.reply("Only admins can run this command.");
+    await ctx.reply(ctx.t("errors-only-admins"));
     return;
   }
-  await ctx.reply("Starting circle creation wizard...");
+  await ctx.reply(ctx.t("circle-starting-wizard"));
   await ctx.conversation.enter("createCircleConversation");
 });
 
 bot.command("start_circle", async (ctx) => {
   const admin = await requireAdmin(ctx);
   if (!admin) {
-    await ctx.reply("Only admins can start the circle.");
+    await ctx.reply(ctx.t("errors-only-admins-start-circle"));
     return;
   }
 
@@ -64,7 +73,7 @@ bot.command("start_circle", async (ctx) => {
   });
 
   if (!circle) {
-    await ctx.reply("No open circle found. Use /create_circle first.");
+    await ctx.reply(ctx.t("errors-no-open-circle"));
     return;
   }
 
@@ -75,18 +84,18 @@ bot.command("start_circle", async (ctx) => {
 
   const monthCount = circle.circleMonths?.length ?? 0;
   await ctx.reply(
-    `Circle "${circle.name}" is now locked. Subscriptions are closed for ${monthCount} month(s).`,
+    ctx.t("circle-locked", { circleName: circle.name, monthCount }),
   );
 });
 
 bot.command("admin", async (ctx) => {
   const admin = await requireAdmin(ctx);
   if (!admin) {
-    await ctx.reply("Only admins can access this command.");
+    await ctx.reply(ctx.t("errors-only-admins-access"));
     return;
   }
 
-  await ctx.reply("🔧 Admin Panel", { reply_markup: adminMainMenu });
+  await ctx.reply(ctx.t("admin-panel-title"), { reply_markup: adminMainMenu });
 });
 
 bot.catch(({ error }) => {

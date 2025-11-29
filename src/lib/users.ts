@@ -18,7 +18,7 @@ export async function userMiddleware(ctx: MyContext, next: () => Promise<void>) 
     ctx.user = existing;
     // Set commands for existing user
     if (ctx.from) {
-      await setCommandsForUser(ctx.api, ctx.from.id, existing.isAdmin);
+      await setCommandsForUser(ctx, ctx.from.id, existing.isAdmin);
     }
     return next();
   }
@@ -39,7 +39,7 @@ export async function userMiddleware(ctx: MyContext, next: () => Promise<void>) 
   ctx.user = created;
   // Set commands for newly created user
   if (ctx.from) {
-    await setCommandsForUser(ctx.api, ctx.from.id, created.isAdmin);
+    await setCommandsForUser(ctx, ctx.from.id, created.isAdmin);
   }
   return next();
 }

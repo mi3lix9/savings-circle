@@ -14,7 +14,7 @@ export async function createCircleConversation(
 ) {
   const admin = await requireAdmin(ctx);
   if (!admin) {
-    await ctx.reply("Only admins can create a circle.");
+    await ctx.reply(ctx.t("errors-only-admins-create"));
     return;
   }
 
@@ -23,46 +23,46 @@ export async function createCircleConversation(
   });
   if (existingCircle) {
     await ctx.reply(
-      `Circle "${existingCircle.name}" is still open. Lock it with /start_circle before creating a new one.`,
+      ctx.t("errors-circle-still-open", { circleName: existingCircle.name }),
     );
     return;
   }
 
-  await ctx.reply("Let's create a new circle. What should the circle be called?");
-  const circleName = await waitForText(conversation, "Circle name cannot be empty.");
+  await ctx.reply(ctx.t("circle-what-name"));
+  const circleName = await waitForText(conversation, ctx.t("circle-name-empty"));
 
-  await ctx.reply("Enter the monthly contribution amount (numbers only).");
+  await ctx.reply(ctx.t("circle-monthly-amount"));
   const monthlyAmount = await waitForPositiveNumber(
     conversation,
-    "Please enter a positive number for the monthly amount.",
+    ctx.t("circle-monthly-amount-invalid"),
   );
 
-  await ctx.reply("How many months should this circle run? (Enter a number between 1 and 24)");
+  await ctx.reply(ctx.t("circle-duration"));
   const duration = await waitForInteger(
     conversation,
-    "Please enter a number between 1 and 24 for the duration.",
+    ctx.t("circle-duration-invalid"),
     { min: 1, max: 24 },
   );
 
-  await ctx.reply("How many stocks should be available per month?");
+  await ctx.reply(ctx.t("circle-stocks-per-month"));
   const stocksPerMonth = await waitForInteger(
     conversation,
-    "Please enter a positive number for stocks per month.",
+    ctx.t("circle-stocks-per-month-invalid"),
     { min: 1 },
   );
 
-  await ctx.reply("What month should the circle start? (Enter a number from 1-12, where 1=January, 12=December)");
+  await ctx.reply(ctx.t("circle-start-month"));
   const startMonth = await waitForInteger(
     conversation,
-    "Please enter a number between 1 and 12 for the start month.",
+    ctx.t("circle-start-month-invalid"),
     { min: 1, max: 12 },
   );
 
   const currentYear = new Date().getFullYear();
-  await ctx.reply(`What year should the circle start? (Enter a year, e.g., ${currentYear})`);
+  await ctx.reply(ctx.t("circle-start-year", { year: currentYear }));
   const startYear = await waitForInteger(
     conversation,
-    `Please enter a valid year (${currentYear} or later).`,
+    ctx.t("circle-start-year-invalid", { year: currentYear }),
     { min: currentYear },
   );
 
@@ -78,7 +78,7 @@ export async function createCircleConversation(
     .returning();
 
   if (!newCircle) {
-    await ctx.reply("Something went wrong while creating the circle. Please try again.");
+    await ctx.reply(ctx.t("errors-circle-creation-failed"));
     return;
   }
 
@@ -96,20 +96,17 @@ export async function createCircleConversation(
   const totalPayout = monthlyAmount * stocksPerMonth * duration;
 
   const summaryLines = months.map(
-    (month, idx) => `${idx + 1}. ${month.name} — ${month.totalStocks} stock(s)`,
+    (month, idx) => ctx.t("circle-month-summary", { index: idx + 1, monthName: month.name, stockCount: month.totalStocks }),
   );
 
-  const message = `Circle "${newCircle.name}" created!
-
-📊 Payment Details:
-• Monthly contribution per participant: ${monthlyAmount} SAR
-• Total collected per month: ${totalPerMonth.toFixed(2)} SAR
-• Total payout for circle: ${totalPayout.toFixed(2)} SAR
-
-📅 Months (${duration} months):
-${summaryLines.join("\n")}
-
-Use /start_circle once subscriptions should be locked.`;
+  let message = ctx.t("circle-created", { circleName: newCircle.name }) + "\n\n";
+  message += ctx.t("circle-payment-details") + "\n";
+  message += ctx.t("circle-monthly-contribution", { amount: monthlyAmount }) + "\n";
+  message += ctx.t("circle-total-collected", { totalPerMonth: totalPerMonth.toFixed(2) }) + "\n";
+  message += ctx.t("circle-total-payout", { totalPayout: totalPayout.toFixed(2) }) + "\n\n";
+  message += ctx.t("circle-months-title", { duration }) + "\n";
+  message += summaryLines.join("\n") + "\n\n";
+  message += ctx.t("circle-use-start-circle");
 
   await ctx.reply(message);
 }
