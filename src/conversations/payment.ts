@@ -3,6 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { circles, payments, stocks } from "../db/schema";
 import type { MyContext, MyConversation } from "../lib/context";
 import { getLocalizedMonthName, wrapForLocale } from "../lib/helpers";
+import { notifyAdminsOfPayment, generatePaymentReport } from "../lib/admin";
 
 type PaymentState = {
   fileId?: string;
@@ -176,27 +177,47 @@ export async function paymentConversation(
         return;
     }
     
-    if (data === "confirm") {
-        if (state.selectedMonthIds.length === 0) continue;
-        
-        // Save payments
-        await ctx.db.transaction(async (tx) => {
-            for (const monthId of state.selectedMonthIds) {
-                await tx.insert(payments as any).values({
-                    userId: user.id,
-                    circleId: activeCircle.id,
-                    monthId: monthId,
-                    fileId: state.fileId!,
-                    status: "paid",
-                    paidAt: new Date(),
-                });
-            }
-        });
-        
-        if (messageId) await ctx.api.deleteMessage(ctx.chat!.id, messageId);
-        await ctx.reply(ctx.t("payment-success"));
-        return;
-    }
+     if (data === "confirm") {
+         if (state.selectedMonthIds.length === 0) continue;
+         
+         const locale = await ctx.i18n.getLocale();
+         
+         // Save payments
+         await ctx.db.transaction(async (tx) => {
+             for (const monthId of state.selectedMonthIds) {
+                 await tx.insert(payments as any).values({
+                     userId: user.id,
+                     circleId: activeCircle.id,
+                     monthId: monthId,
+                     fileId: state.fileId!,
+                     status: "paid",
+                     paidAt: new Date(),
+                 });
+             }
+         });
+         
+         // Send notifications to admins for each paid month
+         for (const monthId of state.selectedMonthIds) {
+             try {
+                 // Notify admins of payment
+                 await notifyAdminsOfPayment(ctx.api.bot as any, ctx.db, {
+                     userId: user.id,
+                     circleId: activeCircle.id,
+                     monthId: monthId,
+                     locale,
+                 });
+                 
+                 // Send payment report summary to admins
+                 await generatePaymentReport(ctx.api.bot as any, ctx.db, activeCircle.id, monthId, locale);
+             } catch (error) {
+                 console.error(`Error sending admin notifications for month ${monthId}:`, error);
+             }
+         }
+         
+         if (messageId) await ctx.api.deleteMessage(ctx.chat!.id, messageId);
+         await ctx.reply(ctx.t("payment-success"));
+         return;
+     }
     
     if (data.startsWith("toggle:")) {
         const monthId = Number(data.split(":")[1]);

@@ -207,3 +207,22 @@ payment-success = ✅ Your payment proof has been saved. Thank you!
 
 # Scheduler
 payment-reminder = 🔔 Reminder: Payment for { $monthName } in circle "{ $circleName }" is due. Please use /pay to submit your proof.
+
+# Admin Payment Notifications
+admin-payment-notification = 🔔 <b>Payment Received</b>
+
+👤 User: { $userName } | 📱 { $phone }
+💳 Circle: { $circleName }
+📅 Month: { $monthName }
+💰 Amount: { $amount } SAR
+⏰ Time: { $timestamp }
+
+admin-report-title = 📊 <b>{ $monthName } Payment Report - { $circleName }</b>
+admin-report-paid-section = ✅ <b>PAID ({ $count } users):</b>
+admin-report-paid-item = { $index }. { $userName } - { $amount } SAR
+admin-report-unpaid-section = ❌ <b>NOT YET PAID ({ $count } users):</b>
+admin-report-unpaid-item = { $index }. { $userName } - Still needs to pay
+admin-report-summary = 💰 <b>SUMMARY:</b>
+admin-report-total-paid = • Total Paid: { $amount } SAR ({ $percentage }%)
+admin-report-total-remaining = • Total Remaining: { $amount } SAR ({ $percentage }%)
+admin-report-total-expected = • Total Expected: { $amount } SAR

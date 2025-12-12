@@ -207,3 +207,22 @@ payment-success = ✅ تم حفظ إثبات الدفع الخاص بك. شكر�
 
 # Scheduler
 payment-reminder = 🔔 تذكير: دفعة شهر { $monthName } في الدائرة "{ $circleName }" مستحقة. يرجى استخدام /pay لإرسال إثبات الدفع.
+
+# تنبيهات دفع الإدارة
+admin-payment-notification = 🔔 <b>تم استقبال الدفع</b>
+
+👤 المستخدم: { $userName } | 📱 { $phone }
+💳 الدائرة: { $circleName }
+📅 الشهر: { $monthName }
+💰 المبلغ: { $amount } ريال
+⏰ الوقت: { $timestamp }
+
+admin-report-title = 📊 <b>تقرير الدفع في { $monthName } - { $circleName }</b>
+admin-report-paid-section = ✅ <b>تم الدفع ({ $count } مستخدمين):</b>
+admin-report-paid-item = { $index }. { $userName } - { $amount } ريال
+admin-report-unpaid-section = ❌ <b>لم يتم الدفع بعد ({ $count } مستخدمين):</b>
+admin-report-unpaid-item = { $index }. { $userName } - لا يزال يحتاج إلى الدفع
+admin-report-summary = 💰 <b>الملخص:</b>
+admin-report-total-paid = • إجمالي المدفوع: { $amount } ريال ({ $percentage }%)
+admin-report-total-remaining = • المبلغ المتبقي: { $amount } ريال ({ $percentage }%)
+admin-report-total-expected = • إجمالي المتوقع: { $amount } ريال

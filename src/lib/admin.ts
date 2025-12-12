@@ -1,6 +1,10 @@
 import { eq, and, sql } from "drizzle-orm";
+import type { Bot } from "grammy";
 import type { Database } from "./db";
+import type { MyContext } from "./context";
 import { users, circles, stocks, circleMonths, payments } from "../db/schema";
+import { getLocalizedMonthName, wrapForLocale } from "./helpers";
+import { i18n } from "./i18n";
 
 export type UserWithStats = {
   id: number;
@@ -274,5 +278,287 @@ export async function getCircleStocks(
     months: monthsData,
     summary,
   };
+}
+
+/**
+ * Notify all admins about a new payment received
+ */
+export async function notifyAdminsOfPayment(
+  bot: Bot<MyContext>,
+  db: Database,
+  paymentData: {
+    userId: number;
+    circleId: number;
+    monthId: number;
+    locale?: string;
+  },
+): Promise<void> {
+  try {
+    const { userId, circleId, monthId, locale = "en" } = paymentData;
+
+    // Fetch user details
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, userId),
+    });
+
+    if (!user || !user.telegramId) {
+      console.warn(`User ${userId} not found or has no telegramId`);
+      return;
+    }
+
+    // Fetch circle details
+    const circle = await db.query.circles.findFirst({
+      where: eq(circles.id, circleId),
+    });
+
+    if (!circle) {
+      console.warn(`Circle ${circleId} not found`);
+      return;
+    }
+
+    // Fetch month details
+    const month = await db.query.circleMonths.findFirst({
+      where: eq(circleMonths.id, monthId),
+    });
+
+    if (!month) {
+      console.warn(`Month ${monthId} not found`);
+      return;
+    }
+
+    // Get user's stocks for this month to calculate payment amount
+    const userStock = await db.query.stocks.findFirst({
+      where: and(
+        eq(stocks.userId, userId),
+        eq(stocks.circleId, circleId),
+        eq(stocks.monthId, monthId),
+      ),
+    });
+
+    const paymentAmount = userStock
+      ? circle.monthlyAmount * userStock.stockCount
+      : circle.monthlyAmount;
+
+    // Get all admin users
+    const admins = await db.query.users.findMany({
+      where: eq(users.isAdmin, true),
+    });
+
+    if (admins.length === 0) {
+      console.log("No admins found to notify");
+      return;
+    }
+
+    // Build localized message
+    const monthName = getLocalizedMonthName(month.name, locale);
+    const userName = `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.telegramId;
+    const phone = user.phone || "Not provided";
+    const timestamp = new Date().toLocaleString("en-US", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+
+    const messageText = i18n.t(locale, "admin-payment-notification", {
+      userName,
+      phone,
+      circleName: circle.name,
+      monthName,
+      amount: paymentAmount.toFixed(2),
+      timestamp,
+    });
+
+    const wrappedMessage = wrapForLocale(messageText, locale);
+
+    // Send notification to each admin
+    for (const admin of admins) {
+      if (!admin.telegramId) {
+        console.warn(`Admin ${admin.id} has no telegramId, skipping...`);
+        continue;
+      }
+
+      try {
+        await bot.api.sendMessage(admin.telegramId, wrappedMessage, {
+          parse_mode: "HTML",
+        });
+        console.log(
+          `✓ Payment notification sent to admin ${admin.id} (${admin.firstName})`,
+        );
+      } catch (error) {
+        console.error(
+          `✗ Failed to send payment notification to admin ${admin.id}:`,
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }
+  } catch (error) {
+    console.error("Error in notifyAdminsOfPayment:", error);
+  }
+}
+
+/**
+ * Generate and send payment report to all admins
+ */
+export async function generatePaymentReport(
+  bot: Bot<MyContext>,
+  db: Database,
+  circleId: number,
+  monthId: number,
+  locale: string = "en",
+): Promise<void> {
+  try {
+    // Fetch circle and month details
+    const circle = await db.query.circles.findFirst({
+      where: eq(circles.id, circleId),
+    });
+
+    if (!circle) {
+      console.warn(`Circle ${circleId} not found`);
+      return;
+    }
+
+    const month = await db.query.circleMonths.findFirst({
+      where: eq(circleMonths.id, monthId),
+    });
+
+    if (!month) {
+      console.warn(`Month ${monthId} not found`);
+      return;
+    }
+
+    // Get all users with stocks in this month
+    const monthStocks = await db.query.stocks.findMany({
+      where: and(
+        eq(stocks.circleId, circleId),
+        eq(stocks.monthId, monthId),
+      ),
+      with: { user: true },
+    });
+
+    if (monthStocks.length === 0) {
+      console.log(`No stocks found for circle ${circleId} month ${monthId}`);
+      return;
+    }
+
+    // Get all paid records for this month
+    const paidRecords = await db.query.payments.findMany({
+      where: and(
+        eq(payments.circleId, circleId),
+        eq(payments.monthId, monthId),
+        eq(payments.status, "paid"),
+      ),
+    });
+
+    const paidUserIds = new Set(paidRecords.map((p) => p.userId));
+
+    // Separate paid and unpaid users with their amounts
+    const paidUsers: Array<{ name: string; amount: number; userId: number }> = [];
+    const unpaidUsers: Array<{ name: string; userId: number }> = [];
+
+    for (const stock of monthStocks) {
+      const amount = circle.monthlyAmount * stock.stockCount;
+      const userName = `${stock.user.firstName ?? ""} ${stock.user.lastName ?? ""}`.trim() || stock.user.telegramId;
+
+      if (paidUserIds.has(stock.userId)) {
+        paidUsers.push({ name: userName, amount, userId: stock.userId });
+      } else {
+        unpaidUsers.push({ name: userName, userId: stock.userId });
+      }
+    }
+
+    // Calculate totals
+    const totalPaid = paidUsers.reduce((sum, u) => sum + u.amount, 0);
+    const totalUnpaid = unpaidUsers.length * circle.monthlyAmount;
+    const totalExpected = totalPaid + totalUnpaid;
+    const paidPercentage = totalExpected > 0 ? (totalPaid / totalExpected) * 100 : 0;
+    const unpaidPercentage = totalExpected > 0 ? (totalUnpaid / totalExpected) * 100 : 0;
+
+    // Build report message
+    const monthName = getLocalizedMonthName(month.name, locale);
+    let reportText = i18n.t(locale, "admin-report-title", {
+      monthName,
+      circleName: circle.name,
+    });
+
+    reportText += "\n\n";
+
+    // Paid section
+    if (paidUsers.length > 0) {
+      reportText += i18n.t(locale, "admin-report-paid-section", { count: paidUsers.length }) + "\n";
+      for (let i = 0; i < paidUsers.length; i++) {
+        const user = paidUsers[i];
+        reportText += i18n.t(locale, "admin-report-paid-item", {
+          index: i + 1,
+          userName: user.name,
+          amount: user.amount.toFixed(2),
+        }) + "\n";
+      }
+      reportText += "\n";
+    }
+
+    // Unpaid section
+    if (unpaidUsers.length > 0) {
+      reportText += i18n.t(locale, "admin-report-unpaid-section", { count: unpaidUsers.length }) + "\n";
+      for (let i = 0; i < unpaidUsers.length; i++) {
+        const user = unpaidUsers[i];
+        reportText += i18n.t(locale, "admin-report-unpaid-item", {
+          index: i + 1,
+          userName: user.name,
+        }) + "\n";
+      }
+      reportText += "\n";
+    }
+
+    // Summary section
+    reportText += i18n.t(locale, "admin-report-summary") + "\n";
+    reportText += i18n.t(locale, "admin-report-total-paid", {
+      amount: totalPaid.toFixed(2),
+      percentage: paidPercentage.toFixed(1),
+    }) + "\n";
+    reportText += i18n.t(locale, "admin-report-total-remaining", {
+      amount: totalUnpaid.toFixed(2),
+      percentage: unpaidPercentage.toFixed(1),
+    }) + "\n";
+    reportText += i18n.t(locale, "admin-report-total-expected", {
+      amount: totalExpected.toFixed(2),
+    });
+
+    const wrappedReport = wrapForLocale(reportText, locale);
+
+    // Get all admin users
+    const admins = await db.query.users.findMany({
+      where: eq(users.isAdmin, true),
+    });
+
+    if (admins.length === 0) {
+      console.log("No admins found to send report");
+      return;
+    }
+
+    // Send report to each admin
+    for (const admin of admins) {
+      if (!admin.telegramId) {
+        console.warn(`Admin ${admin.id} has no telegramId, skipping...`);
+        continue;
+      }
+
+      try {
+        await bot.api.sendMessage(admin.telegramId, wrappedReport, {
+          parse_mode: "HTML",
+        });
+        console.log(`✓ Payment report sent to admin ${admin.id} (${admin.firstName})`);
+      } catch (error) {
+        console.error(
+          `✗ Failed to send payment report to admin ${admin.id}:`,
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }
+  } catch (error) {
+    console.error("Error in generatePaymentReport:", error);
+  }
 }
 
